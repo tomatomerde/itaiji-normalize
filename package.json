@@ -1,0 +1,65 @@
+{
+  "name": "mj-shrink-map",
+  "version": "0.1.0",
+  "description": "Grounded itaiji (kanji variant) normalization, equivalence, and matching-key generation using IPA's MJ Shrink Map",
+  "keywords": [
+    "itaiji",
+    "kanji",
+    "variant",
+    "japanese",
+    "normalization",
+    "mj-shrink-map",
+    "ivs",
+    "unicode"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "LICENSE-DATA",
+    "data/snapshot/PROVENANCE.md"
+  ],
+  "homepage": "https://github.com/tomatomerde/itaiji-library#readme",
+  "bugs": {
+    "url": "https://github.com/tomatomerde/itaiji-library/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build:tables": "tsx scripts/build-tables.ts",
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tomatomerde/itaiji-library.git"
+  }
+}

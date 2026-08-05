@@ -1,0 +1,64 @@
+Data license: CC BY-SA 2.1 Japan
+=================================
+
+This package bundles data derived from the MJ Shrink Map (MJ縮退マップ),
+published by the Character Information Technology Promotion Council
+(文字情報技術促進協議会) / Information-technology Promotion Agency, Japan (IPA).
+
+  Title:    MJ縮退マップ (MJ Shrink Map)
+  Version:  1.2.0 (issued 2018-01-26)
+  Creator:  独立行政法人情報処理推進機構 (IPA)
+  Source:   https://moji.or.jp/mojikiban/map/
+  License:  Creative Commons Attribution-ShareAlike 2.1 Japan
+            https://creativecommons.org/licenses/by-sa/2.1/jp/
+
+This package also bundles the MJ Character Information List (MJ文字情報一覧表),
+Ver.006.02, from the same source and under the same license, used to resolve
+Unicode code points and IVS/SVS variation sequences for MJ glyph names:
+
+  Source:   https://moji.or.jp/mojikiban/mjlist/
+  License:  Creative Commons Attribution-ShareAlike 2.1 Japan
+            https://creativecommons.org/licenses/by-sa/2.1/jp/
+
+See data/snapshot/PROVENANCE.md for exact file versions, retrieval dates, and
+SHA-256 hashes of the snapshots kept in this repository.
+
+Files under this license
+------------------------
+
+In the published npm package, the licensed data is not shipped as a separate
+data file: it is compiled into the JavaScript bundles. The files carrying it
+are:
+
+- dist/index.js  (ESM bundle; embeds the derived conversion tables)
+- dist/index.cjs (CommonJS bundle; same data)
+
+Also included in the package for provenance, and likewise under this license:
+
+- data/snapshot/PROVENANCE.md (source, version, retrieval date and SHA-256 of
+  each original file)
+
+In the source repository (https://github.com/tomatomerde/itaiji-library) the
+same data additionally exists as:
+
+- data/snapshot/MJShrinkMap.1.2.0.json (original snapshot, unmodified)
+- data/snapshot/mji.00602.xlsx (original snapshot, unmodified)
+- data/generated/mji-list.tsv (mechanical extraction of the snapshot above)
+- src/generated/tables.ts (derived work: a compact re-encoding of the
+  relations recorded in the two files above, and the file that is compiled
+  into the dist bundles listed above)
+
+What ShareAlike (SA) means for you
+-----------------------------------
+
+CC BY-SA is a share-alike license: works you create that incorporate this
+data (including src/generated/tables.ts, and any transformation of it) must,
+when distributed, be licensed under CC BY-SA 2.1 Japan (or a license the
+Creative Commons organization has designated as compatible) and must credit
+IPA as above. This requirement attaches to the data and its derivatives —
+it does not extend to the MIT-licensed source code that reads and processes
+the data (see LICENSE), only to the data itself and re-encodings of it.
+
+If you are unsure whether your use of this package triggers the ShareAlike
+obligation, consult the license text at the URL above or seek your own legal
+advice; this file is a summary, not a substitute for the license.

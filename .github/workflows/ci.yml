@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The dev toolchain (vitest 4 -> rolldown) imports `styleText` from
+        # node:util, which only exists from Node 20.12 on, so the test suite
+        # cannot run on Node 18. That is a toolchain constraint, not a limit on
+        # the published package — the smoke-node18 job below proves the
+        # engines ">=18" claim against the actual packed artifact.
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Verify src/generated/tables.ts matches the committed snapshots
+        run: |
+          npm run build:tables
+          git diff --exit-code src/generated/tables.ts || {
+            echo "::error::src/generated/tables.ts is out of date relative to data/snapshot + data/generated/mji-list.tsv. Run 'npm run build:tables' and commit the result.";
+            exit 1;
+          }
+
+  smoke-node18:
+    # package.json declares engines ">=18" and both READMEs promise Node 18+.
+    # The test job can't verify that (see above), so exercise the real packed
+    # tarball on Node 18 here rather than assuming the claim holds.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Pack the publishable tarball
+        run: npm pack --pack-destination /tmp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install and exercise the tarball on Node 18
+        run: |
+          node --version
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install /tmp/mj-shrink-map-*.tgz
+          # Quoted heredoc: the runner's shell must not expand anything here.
+          cat > smoke.cjs <<'EOF'
+          const assert = require("node:assert/strict");
+          const m = require("mj-shrink-map");
+          assert.equal(m.reduce("﨑").unique, "崎");                  // 﨑 -> 崎
+          assert.equal(m.reduce("髙").unique, "高");                  // 髙 -> 高
+          assert.equal(m.toMatchingKey("﨑田").key, "崎田");  // 﨑田 -> 崎田
+          assert.equal(m.isVariant("﨑", "崎"), true);
+          assert.ok(m.getVariants("崎").length > 0);
+          console.log("CJS smoke OK on", process.version);
+          EOF
+          cat > smoke.mjs <<'EOF'
+          import assert from "node:assert/strict";
+          import { reduce, toMatchingKey, isVariant, getVariants } from "mj-shrink-map";
+          assert.equal(reduce("﨑").unique, "崎");
+          assert.equal(toMatchingKey("﨑田").key, "崎田");
+          assert.equal(isVariant("﨑", "崎"), true);
+          assert.ok(getVariants("崎").length > 0);
+          console.log("ESM smoke OK on", process.version);
+          EOF
+          node smoke.cjs
+          node smoke.mjs

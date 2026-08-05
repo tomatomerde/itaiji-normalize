@@ -1,0 +1,61 @@
+name: Check CLAUDE.md drift
+
+# Adapted from dev-standards' examples/check-claude-md-drift.yml.
+#
+# It compares the common section ("ここから下は共通" and below) of the
+# project's CLAUDE.md against the canonical template in the dev-standards
+# repository, and emits a warning annotation on drift. It never fails the
+# build: drift is a reminder to sync, not an error.
+#
+# Local change vs. the upstream example: the upstream version passes
+# secrets.DEV_STANDARDS_TOKEN straight to actions/checkout, so when the secret
+# is not configured the checkout hard-fails with "Input required and not
+# supplied: token" — which contradicts the "never fails the build" contract
+# above and paints every pull request red until a human sets the secret. Here
+# the token is probed first and the comparison is skipped with a notice when
+# it is absent. (secrets are not available in `if:` expressions, so the token
+# is mapped to a job-level env var and the step conditions test that.)
+#
+# Requirements (manual, one-time per project repo):
+#   - A fine-grained PAT with Contents: Read access to
+#     tomatomerde/dev-standards, stored as the Actions secret
+#     DEV_STANDARDS_TOKEN (dev-standards is private).
+
+on:
+  pull_request:
+    paths:
+      - CLAUDE.md
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    env:
+      DEV_STANDARDS_TOKEN: ${{ secrets.DEV_STANDARDS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check whether the dev-standards token is configured
+        id: token
+        run: |
+          if [ -n "${DEV_STANDARDS_TOKEN}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice file=CLAUDE.md::DEV_STANDARDS_TOKEN が未設定のため CLAUDE.md のドリフト検査をスキップしました。有効化するには Actions シークレットに設定してください。"
+          fi
+      - name: Check out the canonical template
+        if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: tomatomerde/dev-standards
+          token: ${{ secrets.DEV_STANDARDS_TOKEN }}
+          path: .dev-standards
+      - name: Compare common section against canonical template
+        if: steps.token.outputs.present == 'true'
+        run: |
+          extract() { awk '/^# ここから下は共通/,0' "$1"; }
+          if diff <(extract .dev-standards/CLAUDE.template.md) <(extract CLAUDE.md); then
+            echo "Common section matches the canonical template."
+          else
+            echo "::warning file=CLAUDE.md::共通部分が dev-standards の原本からずれています。原本と同期してください（diff は上のログ参照）"
+          fi
