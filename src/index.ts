@@ -5,6 +5,7 @@ export { toMatchingKey } from "./toMatchingKey.js";
 export type { Basis } from "./basis.js";
 export type {
   Candidate,
+  Variant,
   ReduceResult,
   ResolvedVia,
   UnresolvedChar,

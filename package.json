@@ -48,15 +48,19 @@
     "build:tables": "tsx scripts/build-tables.ts",
     "build": "tsup",
     "test": "vitest run",
+    "test:browser": "node scripts/verify-browser.mjs",
+    "test:workers": "node scripts/verify-workers.mjs",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "playwright": "^1.62.1",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "workerd": "^1.20260804.1"
   },
   "repository": {
     "type": "git",

@@ -200,17 +200,38 @@ for (const [mjName, candidates] of mjCandidates) {
 // Edge (source, target) for every resolved reduction pair, plus edges between
 // every pair of co-candidates of the same MJ entry (they are, by construction,
 // alternate JIS-representable forms of that one MJ glyph — see docs/phase0-report.md #6).
+//
+// Those two kinds of edge do NOT carry the same weight of evidence, and
+// conflating them misrepresents the data. A source->target edge is something
+// an authority actually recorded about that pair. A co-candidate edge is our
+// inference: MOJ Notice 582 says 齍 may be written 斉 (rank 1) or 資 (rank 2),
+// which relates 斉 and 資 only through 齍 — the notice never says 斉 and 資 are
+// interchangeable. Reporting basis "moj-notice-582-appendix-4" on the 斉~資
+// edge, as this table used to, puts words in the notice's mouth. The `direct`
+// flag distinguishes them so getVariants() can say which is which; an edge
+// that is inferred in one MJ entry and direct in another counts as direct.
 
-const adjacency = new Map<number, Map<number, number>>(); // char -> (otherChar -> bitmask)
+interface Edge {
+  bitmask: number;
+  direct: boolean;
+}
 
-function addEdge(a: number, b: number, bitmask: number) {
+const adjacency = new Map<number, Map<number, Edge>>(); // char -> (otherChar -> edge)
+
+function addEdge(a: number, b: number, bitmask: number, direct: boolean) {
   if (a === b) return;
-  let bucketA = adjacency.get(a);
-  if (!bucketA) adjacency.set(a, (bucketA = new Map()));
-  bucketA.set(b, (bucketA.get(b) ?? 0) | bitmask);
-  let bucketB = adjacency.get(b);
-  if (!bucketB) adjacency.set(b, (bucketB = new Map()));
-  bucketB.set(a, (bucketB.get(a) ?? 0) | bitmask);
+  for (const [from, to] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    let bucket = adjacency.get(from);
+    if (!bucket) adjacency.set(from, (bucket = new Map()));
+    const existing = bucket.get(to);
+    bucket.set(to, {
+      bitmask: (existing?.bitmask ?? 0) | bitmask,
+      direct: (existing?.direct ?? false) || direct,
+    });
+  }
 }
 
 for (const [mjName, candidates] of mjCandidates) {
@@ -218,13 +239,13 @@ for (const [mjName, candidates] of mjCandidates) {
   const sourceCp = identity?.ucs ?? null;
   const entries = [...candidates.entries()];
   if (sourceCp !== null) {
-    for (const [tgt, detail] of entries) addEdge(sourceCp, tgt, detail.bitmask);
+    for (const [tgt, detail] of entries) addEdge(sourceCp, tgt, detail.bitmask, true);
   }
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
       const [tA, dA] = entries[i]!;
       const [tB, dB] = entries[j]!;
-      addEdge(tA, tB, dA.bitmask | dB.bitmask);
+      addEdge(tA, tB, dA.bitmask | dB.bitmask, false);
     }
   }
 }
@@ -249,10 +270,12 @@ function serializeReduceTable(table: ReduceTable): Record<string, SerializedCand
   return out;
 }
 
-function serializeAdjacency(adj: Map<number, Map<number, number>>): Record<string, [string, number][]> {
-  const out: Record<string, [string, number][]> = {};
+function serializeAdjacency(adj: Map<number, Map<number, Edge>>): Record<string, [string, number, number][]> {
+  const out: Record<string, [string, number, number][]> = {};
   for (const [cp, others] of adj) {
-    out[hex(cp)] = [...others.entries()].sort((a, b) => a[0] - b[0]).map(([o, b]) => [hex(o), b]);
+    out[hex(cp)] = [...others.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([o, e]) => [hex(o), e.bitmask, e.direct ? 1 : 0]);
   }
   return out;
 }
@@ -300,8 +323,10 @@ export const REDUCE_BY_UCS: Record<string, SerializedCandidate[]> = /* @__PURE__
 // "baseHex_vsHex" IVS key -> candidates
 export const REDUCE_BY_IVS: Record<string, SerializedCandidate[]> = /* @__PURE__ */ JSON.parse(${toSingleQuotedJsLiteral(reduceByIvsJson)});
 
-// char code point (hex) -> [otherCharHex, basisBitmask][], undirected
-export const VARIANT_ADJACENCY: Record<string, [string, number][]> = /* @__PURE__ */ JSON.parse(${toSingleQuotedJsLiteral(adjacencyJson)});
+// char code point (hex) -> [otherCharHex, basisBitmask, direct][], undirected.
+// direct is 1 when an authority recorded this pair itself, 0 when the edge is
+// inferred from both characters being candidates of one MJ glyph.
+export const VARIANT_ADJACENCY: Record<string, [string, number, number][]> = /* @__PURE__ */ JSON.parse(${toSingleQuotedJsLiteral(adjacencyJson)});
 `;
 
 writeFileSync(OUT_PATH, out);

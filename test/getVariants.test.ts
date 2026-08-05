@@ -38,4 +38,23 @@ describe("getVariants", () => {
   it("複数文字を渡すと例外を投げる", () => {
     expect(() => getVariants("崎田")).toThrow(TypeError);
   });
+
+  it("根拠を借用した推論エッジを inferred で区別する", () => {
+    // 法務省告示582号別表第四は「齍 は 斉(第1順位)または 資(第2順位)と
+    // 書ける」と言っているだけで、斉 と 資 が相互に置換可能とは言っていない。
+    // 以前は 斉~資 のエッジに basis: moj-notice-582-appendix-4 が付いており、
+    // 告示が言っていないことを言ったことにしてしまっていた。
+    const variants = getVariants("斉");
+    const shi = variants.find((v) => v.char === "資");
+    const sai = variants.find((v) => v.char === "齍");
+    expect(shi?.inferred).toBe(true); // 齍 を介した推論であって告示の記載ではない
+    expect(sai?.inferred).toBe(false); // 告示が実際に 齍→斉 を記載している
+  });
+
+  it("直接エッジと推論エッジの両方が実データに存在する", () => {
+    // どちらか一方しか無ければ inferred フラグは意味を持たない。
+    const variants = getVariants("斉");
+    expect(variants.some((v) => v.inferred)).toBe(true);
+    expect(variants.some((v) => !v.inferred)).toBe(true);
+  });
 });
