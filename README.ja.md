@@ -5,10 +5,13 @@
 IPA の**MJ縮退マップ**(ハードコード辞書ではなく公的データ)を根拠とする、
 日本語異体字の縮退変換・等価判定・名寄せキー生成ライブラリ。
 
-依存ゼロ。全データを同梱し、ビルド時・実行時とも外部ネットワークへアクセス
-しない。Node.js 18+ は、公開する tarball を Node 18 に install して
-`require()` と `import()` の両方を実行する CI ジョブで実証済み。ブラウザと
-Cloudflare Workers は対応対象だが CI では未検証([既知の制約](#既知の制約)参照)。
+依存ゼロ。全データを同梱し、ビルド時・実行時とも外部ネットワークへアクセスしない。
+
+対応を謳うランタイムはすべて、ソースではなく**ビルド成果物**に対して CI で
+実行検証している: **Node.js 18+**(公開する tarball を Node 18 に install して
+`require()` と `import()` の両方で呼び出し、加えて Node 20・22 で全テスト)、
+**ブラウザ**(ESM バンドルを headless Chromium にモジュールスクリプトとして読み込み)、
+**Cloudflare Workers**(Workers が実際に使うランタイム workerd 上でバンドルを実行)。
 
 ## なぜ作ったか
 
@@ -222,8 +225,10 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 `false` を渡す。
 
 **full ICU が必要。** `String.prototype.normalize` は full ICU データを要する。
-公式の Node.js ビルドは満たすが、`--with-intl=small-icu`(や `none`)で
-ビルドされた Node では正しく正規化されない。その場合は
+公式の Node.js ビルドに加え、Chromium と workerd も満たす — CI のブラウザ/Workers
+ジョブが NFKC の畳み込みを実際に assert しているので、ICU 欠落のランタイムなら
+黙って別のキーを出すのではなくジョブが落ちる。`--with-intl=small-icu`(や `none`)で
+ビルドされた Node では正しく正規化されないので、その場合は
 `unicodeNormalize: false` を使う。
 
 **スループット。** 短い氏名で `toMatchingKey` およそ 50〜70 万回/秒(10万件で
@@ -232,9 +237,9 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 状態になるため)。数百万行を処理してさらに速度が必要なら、呼び出し側で文字単位に
 メモ化してほしい。
 
-**CI で未検証**: ブラウザおよび Cloudflare Workers 上での実行。Node は
-18・20・22 を検証しており、18 については公開する tarball を install して
-`require()` と `import()` の両方で呼び出している。
+**CI がカバーしていない範囲。** Node 18/20/22・headless Chromium・workerd 以外の
+ランタイム、とくに Deno・Bun・Chromium 以外のブラウザ。バンドルにエンジン固有の
+要素は無いが、それは推論であって証拠ではないため未検証として扱ってほしい。
 
 ## FAQ: なぜ `reverse()` がないのか
 
@@ -256,7 +261,7 @@ MJ縮退マップは多対一の対応関係(複数の MJ 字形が同じ JIS �
 - テーブルは素の JSON。コンパクトな再符号化(縮退先の共有辞書化、コード
   ポイント差分符号化)により API 全体のバンドルを現在の 552 KB(gzip)から
   大きく下げられる。実装前調査で設計済み・未実装
-- ブラウザおよび Cloudflare Workers 上での実行は CI 未カバー
+- Deno / Bun は CI 未カバー(Node・Chromium・workerd はカバー済み)
 - Python版は未着手(TypeScript版の反応を見てから判断)
 
 ## 開発
@@ -264,7 +269,9 @@ MJ縮退マップは多対一の対応関係(複数の MJ 字形が同じ JIS �
 ```sh
 npm install
 npm run build:tables   # data/snapshot/ から src/generated/tables.ts を再生成
-npm run build           # tsup で ESM + CJS + .d.ts をビルド
-npm test                # vitest
+npm run build          # tsup で ESM + CJS + .d.ts をビルド
+npm test               # vitest
 npm run typecheck
+npm run test:browser   # headless Chromium でビルド成果物を実行
+npm run test:workers   # workerd(Cloudflare Workers)でビルド成果物を実行
 ```

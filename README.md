@@ -7,10 +7,14 @@ and matching-key generation for Japanese text, backed by IPA's **MJ Shrink
 Map** (MJ縮退マップ) — a public dataset, not a hand-curated dictionary.
 
 Dependency-free. All data ships inside the package; nothing is fetched over
-the network at build or run time. Node.js 18+ is verified in CI by installing
-the published tarball on Node 18 and exercising both `require()` and
-`import()`; browsers and Cloudflare Workers are supported targets but are not
-yet exercised in CI (see [Known limitations](#known-limitations)).
+the network at build or run time.
+
+Every supported runtime is exercised in CI, against the built artifact rather
+than the source: **Node.js 18+** (by installing the published tarball on Node
+18 and calling it through both `require()` and `import()`, plus the full suite
+on Node 20 and 22), **browsers** (the ESM bundle loaded as a module script in
+headless Chromium), and **Cloudflare Workers** (the bundle running inside
+workerd, the runtime Workers actually uses).
 
 ## Why this exists
 
@@ -254,9 +258,11 @@ key can be longer than the input. Pass `"NFC"` or `false` if you need the
 input's shape preserved.
 
 **Full ICU is required.** `String.prototype.normalize` needs full ICU data.
-Official Node.js builds have it; a Node compiled with
-`--with-intl=small-icu` (or `none`) will not normalize correctly. Pass
-`unicodeNormalize: false` if you must run on such a build.
+Official Node.js builds have it, and so do Chromium and workerd — the CI
+browser and Workers jobs assert that NFKC actually folds, so a runtime
+missing ICU would fail there rather than silently produce different keys. A
+Node compiled with `--with-intl=small-icu` (or `none`) will not normalize
+correctly; pass `unicodeNormalize: false` if you must run on such a build.
 
 **Throughput.** Roughly 0.5–0.7 million `toMatchingKey` calls/second on short
 names (100,000 names in ~150–210 ms across the machines we measured on, Node
@@ -265,9 +271,10 @@ cross-call cache, on purpose: that would be hidden global state. If you are
 normalizing millions of rows and want more, memoize per character on your
 side.
 
-**Not yet verified in CI**: execution in a browser or on Cloudflare Workers.
-Node 18, 20 and 22 are covered, and Node 18 specifically by installing the
-published tarball and calling it through both `require()` and `import()`.
+**What CI does not cover.** Runtimes other than Node 18/20/22, headless
+Chromium and workerd — notably Deno, Bun, and non-Chromium browsers. Nothing
+in the bundle is engine-specific, but that is reasoning, not evidence, so
+treat those as unverified.
 
 ## FAQ: why is there no `reverse()`?
 
@@ -293,7 +300,7 @@ responsibly.
   dictionary, code point delta encoding) would cut the whole-API bundle
   well below the current 552 KB gzip; designed in the phase 0 study, not
   yet implemented
-- Browser and Cloudflare Workers execution is not yet covered by CI
+- No Deno or Bun coverage in CI (Node, Chromium and workerd are covered)
 - No Python port yet (depends on adoption of the TypeScript version)
 
 ## Development
@@ -301,7 +308,9 @@ responsibly.
 ```sh
 npm install
 npm run build:tables   # regenerate src/generated/tables.ts from data/snapshot/
-npm run build           # ESM + CJS + .d.ts via tsup
-npm test                # vitest
+npm run build          # ESM + CJS + .d.ts via tsup
+npm test               # vitest
 npm run typecheck
+npm run test:browser   # run the built bundle in headless Chromium
+npm run test:workers   # run the built bundle in workerd (Cloudflare Workers)
 ```

@@ -35,6 +35,41 @@ jobs:
             exit 1;
           }
 
+  browser:
+    # The package advertises browser support. Until this job existed that
+    # rested on "it has no dependencies, so it probably works" — and two
+    # things can only be checked in a real engine: that the bundle touches no
+    # Node built-in, and that NFKC (which needs full ICU) folds the way the
+    # Node-based tests assume.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
+  workers:
+    # Cloudflare Workers is neither Node nor a browser — a V8 isolate with its
+    # own globals and module loader and no Node built-ins — so the browser job
+    # does not stand in for it. This runs the bundle in workerd, the runtime
+    # Workers actually uses.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:workers
+
   smoke-node18:
     # package.json declares engines ">=18" and both READMEs promise Node 18+.
     # The test job can't verify that (see above), so exercise the real packed

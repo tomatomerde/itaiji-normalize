@@ -55,7 +55,8 @@ First release. Not yet published to npm; `npm publish` is a manual step.
   carries signal.
 - The default `unicodeNormalize: "NFKC"` also folds compatibility forms
   (`㈱`→`(株)`, `①②③`→`123`), which can make the key longer than the input.
-- Node 18, 20 and 22 are exercised in CI, Node 18 by installing the packed
-  tarball and calling it through both `require()` and `import()`. Browser and
-  Cloudflare Workers execution is a supported target but is not yet covered
-  by CI.
+- Every advertised runtime is exercised in CI against the built artifact:
+  Node 18 (via the packed tarball, through both `require()` and `import()`),
+  Node 20 and 22 (full suite), headless Chromium, and workerd — the runtime
+  Cloudflare Workers uses. Deno, Bun and non-Chromium browsers are not
+  covered.
