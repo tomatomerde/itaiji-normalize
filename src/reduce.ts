@@ -27,9 +27,20 @@ function toCandidates(list: SerializedCandidate[]): Candidate[] {
  * failing that, there is no ranked evidence to break the tie, and this
  * function returns null rather than picking arbitrarily (e.g. by code point).
  */
-function pickUnique(list: SerializedCandidate[]): string | null {
-  if (list.length === 0) return null;
-  if (list.length === 1) return String.fromCodePoint(Number.parseInt(list[0]![0], 16));
+export interface Selection {
+  /** The winning candidate, or null when nothing wins outright. */
+  unique: string | null;
+  /**
+   * When `unique` is null because two or more candidates scored identically,
+   * those candidates. Empty otherwise. toMatchingKey uses this to check
+   * whether the tie actually matters — see resolveTie there.
+   */
+  tied: string[];
+}
+
+function pickBest(list: SerializedCandidate[]): Selection {
+  if (list.length === 0) return { unique: null, tied: [] };
+  if (list.length === 1) return { unique: String.fromCodePoint(Number.parseInt(list[0]![0], 16)), tied: [] };
 
   const scored = list.map((candidate) => {
     const [, bitmask, rank, hop] = candidate;
@@ -51,8 +62,17 @@ function pickUnique(list: SerializedCandidate[]): string | null {
 
   const best = scored[0]!;
   const tiedWithBest = scored.filter((s) => s.tier === best.tier && s.secondary === best.secondary);
-  if (tiedWithBest.length > 1) return null;
-  return String.fromCodePoint(Number.parseInt(best.candidate[0], 16));
+  if (tiedWithBest.length > 1) {
+    return {
+      unique: null,
+      tied: tiedWithBest.map((s) => String.fromCodePoint(Number.parseInt(s.candidate[0], 16))),
+    };
+  }
+  return { unique: String.fromCodePoint(Number.parseInt(best.candidate[0], 16)), tied: [] };
+}
+
+function pickUnique(list: SerializedCandidate[]): string | null {
+  return pickBest(list).unique;
 }
 
 /**
@@ -116,7 +136,7 @@ export function reduce(char: string): ReduceResult {
 export function selectRepresentative(
   baseCp: number,
   vsCp: number | null,
-): { unique: string | null; hasCandidates: boolean } {
+): Selection & { hasCandidates: boolean } {
   let list: SerializedCandidate[] | undefined;
   if (vsCp !== null) {
     list = REDUCE_BY_IVS[`${baseCp.toString(16)}_${vsCp.toString(16)}`];
@@ -124,6 +144,6 @@ export function selectRepresentative(
   if (!list) {
     list = REDUCE_BY_UCS[baseCp.toString(16)];
   }
-  if (!list) return { unique: null, hasCandidates: false };
-  return { unique: pickUnique(list), hasCandidates: true };
+  if (!list) return { unique: null, tied: [], hasCandidates: false };
+  return { ...pickBest(list), hasCandidates: true };
 }

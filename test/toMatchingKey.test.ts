@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reduce } from "../src/reduce.js";
 import { toMatchingKey } from "../src/toMatchingKey.js";
 
 describe("toMatchingKey", () => {
@@ -74,14 +75,28 @@ describe("toMatchingKey", () => {
     expect(name.unresolved).toEqual([]);
   });
 
-  it("曖昧なクラスタ(邉)は unresolved に ambiguous として載る", () => {
-    // reduce("邉").unique が null になることは test/reduce.test.ts で確認済み。
-    // conditional にせず必ず要求する。
-    const result = toMatchingKey("邉");
+  it("拮抗した候補が別々の終着点に至る場合は ambiguous として載る", () => {
+    // 㡣(U+3863)の候補 竜 と 龍 は互いに縮退せず、それぞれ別の不動点に至る。
+    // どちらを選ぶかは根拠のない当て推量になるので解決しない。
+    const result = toMatchingKey("㡣");
     expect(result.unresolved).toHaveLength(1);
     expect(result.unresolved[0]!.reason).toBe("ambiguous");
     // 未解決時は原文の文字がそのままキーに残る(黙って何かに変換しない)
-    expect(result.key).toBe("邉");
+    expect(result.key).toBe("㡣");
+  });
+
+  it("拮抗しても全分岐が同じ不動点に収束するなら解決する(渡邉 が 渡辺 と一致する)", () => {
+    // 邉 の候補 辺 と 邊 は同点だが、邊 自身も 辺 に縮退するため、
+    // どちらの枝をたどっても行き着く先は 辺 で変わらない。これは当て推量ではなく
+    // 「選択が結果を変えないことの証明」なので解決してよい。
+    // 修正前は 渡邊 だけが 渡辺 と一致し 渡邉 は一致しないという、
+    // どちらか一方に倒すより悪い状態だった。
+    expect(reduce("邉").unique).toBeNull(); // reduce() 自体は1段階なので依然 null
+    expect(toMatchingKey("邉").key).toBe("辺");
+    expect(toMatchingKey("邉").unresolved).toEqual([]);
+    const keys = ["渡辺", "渡邊", "渡邉"].map((n) => toMatchingKey(n).key);
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toBe("渡辺");
   });
 
   it("既定(NFKC)は CJK互換漢字を統合漢字に正規化する", () => {

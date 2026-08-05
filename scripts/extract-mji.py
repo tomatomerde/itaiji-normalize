@@ -17,10 +17,33 @@ z = zipfile.ZipFile(xlsx)
 
 # shared strings
 strings = []
+def shared_string_text(si):
+    """Concatenate a shared string's runs, skipping <rPh> ruby annotations.
+
+    <rPh> holds the furigana Excel stores alongside a cell's real value, and
+    it contains its own <t>. Collecting every <t> under <si> would splice the
+    reading into the value. Only two shared strings in the current snapshot
+    carry ruby and neither lands in a column this script extracts, so nothing
+    is wrong today — but a refreshed snapshot could quietly corrupt a value,
+    and a silently wrong table is exactly the failure mode this pipeline is
+    supposed to make impossible.
+    """
+    parts = []
+    for child in si:
+        if child.tag == NS + "rPh":
+            continue
+        if child.tag == NS + "t":
+            parts.append(child.text or "")
+        else:  # <r> and friends: take their <t> runs, still skipping ruby
+            for t in child.iter(NS + "t"):
+                parts.append(t.text or "")
+    return "".join(parts)
+
+
 with z.open("xl/sharedStrings.xml") as f:
     for ev, el in ET.iterparse(f):
         if el.tag == NS + "si":
-            strings.append("".join(t.text or "" for t in el.iter(NS + "t")))
+            strings.append(shared_string_text(el))
             el.clear()
 
 def col_index(ref):  # "BC12" -> 54 (0-based column)

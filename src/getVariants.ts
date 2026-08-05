@@ -2,7 +2,7 @@ import { VARIANT_ADJACENCY } from "./generated/tables.js";
 import { basisMaskToList } from "./basis.js";
 import { readFirstUnit } from "./ivs.js";
 import { requireString } from "./validate.js";
-import type { Candidate } from "./types.js";
+import type { Variant } from "./types.js";
 
 /**
  * Lists the characters directly related to `char` in the MJ variant graph
@@ -10,8 +10,14 @@ import type { Candidate } from "./types.js";
  * Order carries no meaning. Returns an empty array for a character with no
  * recorded relations — that is not the same as the character being unknown
  * to MJ entirely; both cases simply produce no variants to list.
+ *
+ * Check `inferred` before quoting `basis` as an authority's word on the
+ * pair: roughly a tenth of the graph's edges exist only because both
+ * characters are candidates of one shared MJ glyph, and on those edges
+ * `basis` describes that shared relationship rather than a statement about
+ * these two characters. See Variant.inferred.
  */
-export function getVariants(char: string): Candidate[] {
+export function getVariants(char: string): Variant[] {
   requireString(char, "getVariants", "its argument");
   const unit = readFirstUnit(char);
   if (!unit || unit.text.length !== char.length) {
@@ -22,8 +28,9 @@ export function getVariants(char: string): Candidate[] {
   const baseHex = unit.base.codePointAt(0)!.toString(16);
   const neighbors = VARIANT_ADJACENCY[baseHex];
   if (!neighbors) return [];
-  return neighbors.map(([hex, bitmask]) => ({
+  return neighbors.map(([hex, bitmask, direct]) => ({
     char: String.fromCodePoint(Number.parseInt(hex, 16)),
     basis: basisMaskToList(bitmask),
+    inferred: direct === 0,
   }));
 }

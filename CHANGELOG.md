@@ -19,10 +19,17 @@ First release. Not yet published to npm; `npm publish` is a manual step.
   variant graph. Deliberately not the transitive closure, which would
   over-merge characters linked only through weakly-evidenced categories.
 - `getVariants(char)` — enumerate directly related characters with evidence,
-  for query expansion. Order carries no meaning.
+  for query expansion. Order carries no meaning. Each result carries
+  `inferred`, distinguishing edges an authority recorded from the ~10% that
+  are inferred from two characters sharing one MJ glyph — on those, `basis`
+  describes the shared relationship, not a statement about the pair.
 - `toMatchingKey(text, options?)` — build a name-matching key, iterating the
   reduction to a fixed point (most characters need more than one step) and
-  reporting anything it could not resolve rather than guessing.
+  reporting anything it could not resolve rather than guessing. When
+  candidates tie, it follows every tied branch and accepts the result only if
+  they all reach the same fixed point — a proof that the choice could not
+  have mattered, not a guess. That is why 渡邉, 渡邊 and 渡辺 all produce the
+  same key.
 - IVS and SVS input accepted as a single unit, with fallback to the base
   character.
 - Dual ESM/CJS build with per-condition type declarations; `arethetypeswrong`

@@ -7,6 +7,23 @@ export interface Candidate {
   basis: Basis[];
 }
 
+export interface Variant extends Candidate {
+  /**
+   * True when no authority recorded this pair directly — the relation is
+   * inferred from both characters appearing as candidates of the same MJ
+   * glyph.
+   *
+   * This distinction matters because `basis` reads differently in the two
+   * cases. On a direct edge it names what an authority said about these two
+   * characters. On an inferred edge it names the evidence categories that
+   * placed each of them under the shared MJ glyph — MOJ Notice 582 says 齍
+   * may be written 斉 or 資, so 斉 and 資 are related through 齍, but the
+   * notice never says the two are interchangeable. About 10% of the graph's
+   * edges are inferred.
+   */
+  inferred: boolean;
+}
+
 /**
  * Which table entry actually produced `candidates`:
  * - "ivs" / "svs": the input's specific variation-sequence key was found

@@ -121,12 +121,22 @@ that would over-merge distinct characters if treated as transitively equal.
 See [`docs/phase0-report.md`](./docs/phase0-report.md) #6 for the component
 sizes we measured.
 
-### `getVariants(char): Candidate[]`
+### `getVariants(char): Variant[]`
 
 Lists every character directly related to `char` (see `isVariant` above),
 each with its evidence. Order carries no meaning. Use this for query
 expansion — e.g. searching for "崎" and also matching documents containing
 "﨑".
+
+**Check `inferred` before quoting `basis` as an authority's word on the
+pair.** About 10% of the graph's edges (3,000 of 30,766) exist only because
+both characters are candidates of one shared MJ glyph, and on those the
+`basis` describes that shared relationship rather than a statement about the
+two characters themselves. MOJ Notice 582 says 齍 may be written 斉 or 資;
+that makes 斉 and 資 related *through* 齍, but the notice never says the two
+are interchangeable — so `getVariants("斉")` reports 資 with
+`inferred: true`, while 齍, which the notice does name, comes back with
+`inferred: false`.
 
 ### `toMatchingKey(text, options?): { key, unresolved }`
 
@@ -142,9 +152,22 @@ guesses.
 | reason | meaning |
 | --- | --- |
 | `"no-candidate"` | the character has no MJ Shrink Map entry at all |
-| `"ambiguous"` | its candidates are tied under `reduce`'s heuristic, at the start of the chain or partway along it |
+| `"ambiguous"` | its candidates are tied under `reduce`'s heuristic **and lead to different fixed points**, at the start of the chain or partway along it |
 | `"cycle"` | every step was unambiguous, but the chain revisits a character instead of settling (e.g. 址 and 阯 reduce to each other) |
 | `"unsupported-sequence"` | the base character carried more than one variation selector, so the unit was passed through untouched |
+
+A tie does not automatically mean unresolved. `reduce` refuses to name a
+representative when candidates score equally, because doing so would be a
+guess — but for a matching key the question is narrower: do the tied
+branches lead anywhere different? Often they don't. 邉 ties between 辺 and
+邊, and 邊 itself reduces to 辺, so every branch ends at 辺 and the choice
+provably could not have mattered. `toMatchingKey` follows all tied branches
+and accepts the answer only when they agree, which is a proof rather than a
+guess; 345 of the 898 tied characters resolve this way and the other 553 are
+still reported `"ambiguous"`. This is why **渡邉 matches 渡辺** — before it,
+渡邊 matched and 渡邉 did not, which is worse than either outcome alone.
+Note that `reduce("邉").unique` is still `null`: `reduce` reports the
+single-step fact, `toMatchingKey` resolves the key.
 
 **Only ideographs are reported in `unresolved`.** Kana, latin letters,
 digits, punctuation and whitespace are outside the MJ character set by
@@ -239,13 +262,13 @@ KB either way depending on your bundler and its version):
 
 | what you import | gzip |
 | --- | --- |
-| `isVariant` only | ~281 KB |
+| `isVariant` only | ~290 KB |
 | `reduce` only | ~270 KB |
 | `toMatchingKey` | ~271 KB |
-| the whole API | ~552 KB |
+| the whole API | ~562 KB |
 
 The generated tables carry `/* @__PURE__ */` annotations so bundlers can drop
-the ones you don't reach; without them every consumer paid the full 552 KB.
+the ones you don't reach; without them every consumer paid for all of them.
 If you use the whole API you still pay all of it, which on Cloudflare Workers
 is over half the 1 MB gzipped budget. Re-encoding the tables more compactly
 is on the roadmap and not done yet.
@@ -298,7 +321,7 @@ responsibly.
   study, so its machine-readability was not verified
 - Tables are stored as plain JSON. A compact re-encoding (shared target
   dictionary, code point delta encoding) would cut the whole-API bundle
-  well below the current 552 KB gzip; designed in the phase 0 study, not
+  well below the current ~562 KB gzip; designed in the phase 0 study, not
   yet implemented
 - No Deno or Bun coverage in CI (Node, Chromium and workerd are covered)
 - No Python port yet (depends on adoption of the TypeScript version)
