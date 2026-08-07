@@ -12,6 +12,7 @@
     "ivs",
     "unicode"
   ],
+  "author": "tomatomerde (https://github.com/tomatomerde)",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",

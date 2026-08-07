@@ -3,11 +3,11 @@
 作業再開・引き継ぎ用のメモ。調査の詳細は `docs/phase0-report.md`(冒頭に
 フェーズ1での訂正表あり)、変更の経緯は各コミットメッセージを参照。
 
-## 引き継ぎ(次のセッションはここから読む)
+## 引き継ぎ
 
 **現在地**: `main` に v0.1.0 相当がマージ済み(PR #1)。**PR #2 がレビュー待ちで
 オープン**(ブランチ `claude/verify-browser-workers`、CI 全5ジョブ green)。
-npm 未公開。所有者は「もう少しレビューと修正を回してから公開したい」意向。
+npm 未公開。公開はレビューを一巡させてから判断する。
 
 **次にやると価値が高いこと**: レビュー ラウンド6。これまで**5ラウンドすべてで
 実バグが出ている**(下記の履歴参照)。特に「ある修正が別のバグを露出させる」
@@ -27,9 +27,11 @@ npm run test:browser   # headless Chromium で dist を実行(要 npm run build)
 npm run test:workers   # workerd(Cloudflare Workers)で dist を実行(同上)
 ```
 
-ブラウザ検証はコンテナ同梱の Chromium(`/opt/pw-browsers/chromium`)を自動で
-使う。Playwright 自身が解決する版とリビジョンが合わないため、
-`scripts/verify-browser.mjs` が明示的にこのパスを見に行く実装になっている。
+ブラウザ検証で使う Chromium は `scripts/verify-browser.mjs` が解決する。環境変数
+`CHROMIUM_PATH` があればそれを、無ければ既定のプリインストール先を見て、どちらも
+無ければ Playwright 自身の解決に任せる(CI は `playwright install` 後のこの経路)。
+Playwright が解決する版とリビジョンが合わない実行環境があるための順序で、
+詳細は同ファイルの `resolveExecutablePath` のコメントにある。
 
 **このプロジェクトの作法**(CLAUDE.md の要求。守らないと意味がない):
 修正したら**修正前に再現し、修正後に消えること**を両方確認する。テストを足したら
@@ -171,28 +173,24 @@ assert が意味を持つこと(Node組み込みAPIの注入・既定正規化�
 
 ### 完了済み(2026-08-05)
 
-- ~~**スナップショット2点の SHA-256 照合**~~ **完了**。所有者が PC 上の
-  ダウンロード原本を PowerShell の `Get-FileHash` で照合し、
-  「所有者のPC / `PROVENANCE.md` の記録 / リポジトリ内の実ファイル」の
-  **3ソースが完全一致**することをプログラムで確認済み
-- ~~**`DEV_STANDARDS_TOKEN` の設定**~~ **完了**。設定後に
-  `workflow_dispatch` で drift ワークフローを実行して実証した:
-  ログに `DEV_STANDARDS_TOKEN: ***`(マスク=設定済み)、dev-standards を
-  `2ddb229` でチェックアウト成功、`Common section matches the canonical
-  template.`(ドリフトなし)。**「成功」だけでは未設定時のスキップと区別が
-  つかないため、比較ステップが実際に走ったことをログで確認すること**
+- ~~**スナップショット2点の SHA-256 照合**~~ **完了**。「配布元からの
+  ダウンロード原本 / `PROVENANCE.md` の記録 / リポジトリ内の実ファイル」の
+  **3ソースが完全一致**することを確認済み
+- ~~**ドリフト検査用シークレットの設定**~~ **完了**。設定後に
+  `workflow_dispatch` で drift ワークフローを実行し、比較ステップが実際に走って
+  `Common section matches the canonical template.` を出すところまで確認した。
+  **「ジョブが成功した」だけでは未設定時のスキップと区別がつかないため、
+  比較が走ったことをログで確かめること**
 - ~~**PR #1 のレビュー・マージ**~~ **完了**(squash merge、`48ec1b0`)
+- ~~**ドリフト検査ワークフローの hard fail**~~ **完了**。テンプレート原本側で
+  修正済みで、PR #6 でこのリポジトリにも取り込んだ。シークレット未設定でも
+  失効していてもジョブは green のまま warning になる
 
 ### 残っているもの
 
-- **dev-standards 原本へのフィードバック**: `examples/check-claude-md-drift.yml`
-  は secret 未設定時に hard fail する(ヘッダコメントの "never fails the build"
-  と矛盾)。本リポジトリ側の修正内容をそのまま原本へ反映するとよい。
-  本セッションは dev-standards に読み取り権限しか持たないため未実施。
-  所有者が対応予定
 - **PR #2 のレビュー・マージ**
-- **npm への実公開**(`npm publish --dry-run` までは実施済み。所有者は
-  さらにレビューを回してから判断する意向)
+- **npm への実公開**(`npm publish --dry-run` までは実施済み。レビューを
+  一巡させてから判断する)
 
 ## まだ検証していない領域(ラウンド6の候補)
 
