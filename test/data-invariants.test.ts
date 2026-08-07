@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { REDUCE_BY_IVS, REDUCE_BY_UCS } from "../src/generated/tables.js";
+import { REDUCE_BY_IVS, REDUCE_BY_UCS, VARIANT_ADJACENCY } from "../src/generated/tables.js";
 import { isCjkIdeograph } from "../src/cjk.js";
+import { isVariant } from "../src/isVariant.js";
 import { reduce } from "../src/reduce.js";
 import { toMatchingKey } from "../src/toMatchingKey.js";
 
@@ -9,6 +10,58 @@ import { toMatchingKey } from "../src/toMatchingKey.js";
 // snapshot; pinning them here means a future data update that violates one
 // fails loudly instead of silently changing behavior.
 describe("生成データが満たすべき不変条件", () => {
+  it("根拠ビットが1つも立っていない異体字エッジが存在しない", () => {
+    // 根拠ゼロのエッジは getVariants() から basis: [] で出ていき、何が欠けて
+    // いるかも分からないまま「根拠のある対応」として扱われてしまう。
+    // 生成側(build-tables.ts の addEdge)は mask 0 を投げて拒否するので、
+    // ここはその表明の裏取り。
+    const zero: string[] = [];
+    for (const [hex, neighbors] of Object.entries(VARIANT_ADJACENCY)) {
+      for (const [other, mask] of neighbors) if (mask === 0) zero.push(`${hex}-${other}`);
+    }
+    expect(zero).toEqual([]);
+  });
+
+  it("隣接字が推論エッジだけの文字は 34 文字", () => {
+    // `includeInferred: false` にすると異体字が1つも無くなる文字。
+    // README がこの数を挙げている。生成テーブルを触ったときに、この
+    // オプションがどれだけの文字を沈黙させるかを見落とさないための固定。
+    const silenced = Object.entries(VARIANT_ADJACENCY).filter(([, neighbors]) =>
+      neighbors.every(([, , direct]) => direct === 0),
+    );
+    expect(silenced.length).toBe(34);
+    for (const [hex, neighbors] of silenced) {
+      const char = String.fromCodePoint(Number.parseInt(hex, 16));
+      for (const [otherHex] of neighbors) {
+        const other = String.fromCodePoint(Number.parseInt(otherHex, 16));
+        expect(isVariant(char, other), `${char}-${other} 既定`).toBe(true);
+        expect(isVariant(char, other, { includeInferred: false }), `${char}-${other} strict`).toBe(false);
+      }
+    }
+  });
+
+  it("民一2842号通達が「別字」と明記した字へは縮退しない", () => {
+    // 付記=別字 は通達が「これは別の文字だ」と言っている印。IPA 自身の
+    // リファレンス実装(MJ2JISX0213.es の 2.1)は、その UCS をそのMJ字形の
+    // **全カテゴリ**から除外する。この除外を入れる前は、113字中96字が
+    // まさに「別字」とされた相手に畳まれていた(㐲→伏、㕍→雁、㬌→景)。
+    const CASES: ReadonlyArray<readonly [string, string]> = [
+      ["㐲", "伏"],
+      ["㕍", "雁"],
+      ["㡄", "恂"],
+      ["㬌", "景"],
+      ["㲹", "汎"],
+      ["䇦", "英"],
+      ["䝷", "智"],
+      ["䢖", "建"],
+    ];
+    for (const [src, different] of CASES) {
+      expect(reduce(src).candidates.map((c) => c.char), `${src} の候補`).not.toContain(different);
+      expect(reduce(src).unique, `${src} の unique`).not.toBe(different);
+      expect(toMatchingKey(src).key, `${src} のキー`).not.toBe(different);
+    }
+  });
+
   it("REDUCE_BY_UCS の全キーが CJK 漢字の範囲に入る", () => {
     // toMatchingKey は isCjkIdeograph() で unresolved の報告対象を絞っている。
     // MJ の縮退元がこの範囲から外れると、その文字は「縮退できなかった」ことを

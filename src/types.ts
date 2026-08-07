@@ -69,13 +69,27 @@ export type UnresolvedReason = "no-candidate" | "ambiguous" | "cycle" | "unsuppo
 export interface UnresolvedChar {
   /** The unit (base character, plus variation selector if any) that could not be resolved. */
   char: string;
-  /** UTF-16 code unit offset of `char` within the (normalized) input string. */
+  /**
+   * UTF-16 code unit offset of `char` within `MatchingKeyResult.normalized` —
+   * NOT within the string you passed in.
+   *
+   * Normalization changes lengths, so this offset can point past the end of
+   * your input: toMatchingKey("㍿㖒") reports index 4 for a two-character
+   * input, because NFKC expands ㍿ to 株式会社. Slice `normalized`, not your
+   * own string.
+   */
   index: number;
   reason: UnresolvedReason;
 }
 
 export interface MatchingKeyResult {
   key: string;
+  /**
+   * The input after Unicode normalization, before any MJ reduction — i.e.
+   * exactly the string `UnresolvedChar.index` indexes into. Equal to the
+   * input when `unicodeNormalize: false`.
+   */
+  normalized: string;
   /**
    * Characters that were left unchanged in `key` because they could not be
    * reduced to a single stable representative.
@@ -93,4 +107,23 @@ export interface MatchingKeyResult {
 export interface MatchingKeyOptions {
   /** Default: "NFKC". Pass false to disable Unicode normalization entirely. */
   unicodeNormalize?: "NFC" | "NFKC" | false;
+}
+
+export interface VariantOptions {
+  /**
+   * Whether isVariant() counts inferred edges — those where the two
+   * characters are related only through being candidates of one shared MJ
+   * glyph (see Variant.inferred). Default: true.
+   *
+   * Leave it on for recall: MJ records a shrink relation only for a glyph
+   * that needs shrinking, so between two characters already in JIS X 0213
+   * this is the only link the data has, and 猫/貓, 摂/攝, 併/倂, 靱/靭 and
+   * 桝/枡 exist solely as inferred edges. Turn it off for precision: that is
+   * what makes isVariant("井", "牛") false, since 井 and 牛 are merely the
+   * two ranked replacements MOJ Notice 582 offers for a third glyph.
+   *
+   * getVariants() takes no such option — it returns `inferred` on each
+   * neighbour so the caller can filter with the same information.
+   */
+  includeInferred?: boolean;
 }

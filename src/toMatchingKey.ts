@@ -230,7 +230,12 @@ export function toMatchingKey(text: string, options: MatchingKeyOptions = {}): M
     }
     index += unit.text.length;
   }
-  return { key, unresolved };
+  // `normalized` is returned, not just used, because `index` counts offsets in
+  // it rather than in `text` — and normalization can make the two diverge far
+  // enough that an index runs past the end of the caller's own string (NFKC
+  // turns ㍿ into four characters). Without this field the offsets are not
+  // actionable; with it, `result.normalized.slice(index)` always works.
+  return { key, normalized, unresolved };
 }
 
 function resolveUnit(unit: ParsedUnit, mode: NormalizeMode): ChainResult {

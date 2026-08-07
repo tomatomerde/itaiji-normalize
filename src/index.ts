@@ -12,4 +12,5 @@ export type {
   UnresolvedReason,
   MatchingKeyOptions,
   MatchingKeyResult,
+  VariantOptions,
 } from "./types.js";

@@ -19,6 +19,31 @@ describe("reduce", () => {
     expect(result.candidates.some((c) => c.char === "崎")).toBe(true);
   });
 
+  it("自己候補は順位もホップ数も持たないので一意選択で勝たない", () => {
+    // JIS包摂規準・UCS統合規則 の候補はたいてい「その文字自身」で、MJ の
+    // 「既に表現可能」という表明にあたる。この候補は順位もホップ数も持たない
+    // ため最下位ティアに落ち、戸籍通達のホップ数を持つ候補に必ず負ける。
+    // 結果 unique は「この字形の JIS X 0213 表現」ではなく畳んだ先になる。
+    // 名寄せとしては望ましい挙動だが README に書くまで説明が無かった。
+    const ki = reduce("㐂");
+    expect(ki.candidates.map((c) => c.char).sort()).toEqual(["㐂", "喜"]);
+    expect(ki.unique).toBe("喜");
+    expect(reduce("㠀").unique).toBe("島");
+  });
+
+  it("unique は CJK 互換漢字になりうる(NFKC で安定しない)", () => {
+    // reduce() は正規化しない。toMatchingKey() はホップ毎に正規化するので
+    // キーは安定するが、unique を直接キーに使う利用者は自分で正規化する
+    // 必要がある。README の該当記述はこの実例に基づく。
+    // 見た目が区別できないのでコードポイントで書く。
+    const COMPAT_UME = "\uFA44"; // 互換漢字の 梅
+    const UNIFIED_UME = "\u6885"; // 統合漢字の 梅
+    const ume = reduce("\u6973").unique; // 楳
+    expect(ume).toBe(COMPAT_UME);
+    expect(ume!.normalize("NFKC")).toBe(UNIFIED_UME);
+    expect(COMPAT_UME).not.toBe(UNIFIED_UME);
+  });
+
   it("邉 は複数候補(辺・邊)が拮抗し、勝手に一意化せず unique=null を返す", () => {
     // 邊/邉/辺 クラスタのうち、邉 は根拠が拮抗する実例。「曖昧さを隠さない」
     // 設計の直接的な検証。邊・辺 はそれぞれ辺・邊自身に一意に解決するが、

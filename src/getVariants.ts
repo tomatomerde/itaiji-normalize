@@ -1,7 +1,6 @@
 import { VARIANT_ADJACENCY } from "./generated/tables.js";
 import { basisMaskToList } from "./basis.js";
-import { readFirstUnit } from "./ivs.js";
-import { requireString } from "./validate.js";
+import { requireSingleUnitBase } from "./unit.js";
 import type { Variant } from "./types.js";
 
 /**
@@ -18,14 +17,7 @@ import type { Variant } from "./types.js";
  * these two characters. See Variant.inferred.
  */
 export function getVariants(char: string): Variant[] {
-  requireString(char, "getVariants", "its argument");
-  const unit = readFirstUnit(char);
-  if (!unit || unit.text.length !== char.length) {
-    throw new TypeError(
-      `getVariants() expects a single character optionally followed by one variation selector, got: ${JSON.stringify(char)}`,
-    );
-  }
-  const baseHex = unit.base.codePointAt(0)!.toString(16);
+  const baseHex = requireSingleUnitBase(char, "getVariants", "its argument");
   const neighbors = VARIANT_ADJACENCY[baseHex];
   if (!neighbors) return [];
   return neighbors.map(([hex, bitmask, direct]) => ({

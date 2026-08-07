@@ -208,6 +208,6 @@ describe("toMatchingKey", () => {
   });
 
   it("空文字列は空キーを返す", () => {
-    expect(toMatchingKey("")).toEqual({ key: "", unresolved: [] });
+    expect(toMatchingKey("")).toEqual({ key: "", normalized: "", unresolved: [] });
   });
 });

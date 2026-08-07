@@ -143,8 +143,33 @@ function mergeDetail(a: CandidateDetail, b: CandidateDetail): CandidateDetail {
 // mjName -> (targetCp -> detail)
 const mjCandidates = new Map<string, Map<number, CandidateDetail>>();
 
+/**
+ * The UCS values this MJ entry's 民一2842号通達別表 誤字俗字・正字一覧表 marks
+ * 付記 = 別字 — "a different character".
+ *
+ * That annotation is the notice saying the two are NOT the same character, so
+ * the target must not become a shrink candidate. IPA's own reference program
+ * (mandel59/mj2jisx0213, MJ2JISX0213.es step 2.1) drops such a UCS from every
+ * category of the entry, not just from the notice's own list, and this
+ * follows that: 㐲's entry lists 伏 under both the family-register notice and
+ * elsewhere, so filtering one list would leave the pair intact through the
+ * other. Skipping this filter folded 96 characters onto the very character
+ * the notice distinguishes them from (㐲→伏, 㕍→雁, 㬌→景, 䇦→英).
+ */
+function differentCharacterTargets(entry: Record<string, unknown>): Set<number> {
+  const out = new Set<number>();
+  const items = entry["法務省戸籍法関連通達・通知"] as Array<Record<string, string>> | undefined;
+  if (!items) return out;
+  for (const item of items) {
+    if (item["付記"] === "別字" && item["UCS"]) out.add(parseUcs(item["UCS"]));
+  }
+  return out;
+}
+
+let differentCharacterCandidatesDropped = 0;
 for (const entry of shrinkMap.content) {
   const name = entry["MJ文字図形名"];
+  const excluded = differentCharacterTargets(entry);
   let targets: Map<number, CandidateDetail> | undefined;
   for (const cat of CATEGORIES) {
     const items = entry[cat] as Array<Record<string, string>> | undefined;
@@ -154,6 +179,10 @@ for (const entry of shrinkMap.content) {
       const ucsStr = item["UCS"];
       if (!ucsStr) continue;
       const targetCp = parseUcs(ucsStr);
+      if (excluded.has(targetCp)) {
+        differentCharacterCandidatesDropped++;
+        continue;
+      }
       const detail: CandidateDetail = {
         bitmask: bit,
         bestRank: cat === "法務省告示582号別表第四" ? parseRank(item["順位"] ?? "") : null,
@@ -220,6 +249,17 @@ const adjacency = new Map<number, Map<number, Edge>>(); // char -> (otherChar ->
 
 function addEdge(a: number, b: number, bitmask: number, direct: boolean) {
   if (a === b) return;
+  // Every edge must name at least one evidence category. An edge with an
+  // empty bitmask would still be reported by getVariants(), with `basis: []`
+  // and no indication that anything is missing — a relation asserted on no
+  // recorded grounds at all, which is the one thing this package exists not
+  // to do. No such edge exists in the current data; this keeps it that way
+  // loudly rather than shipping one silently.
+  if (bitmask === 0) {
+    throw new Error(
+      `refusing to emit an evidence-less variant edge U+${a.toString(16).toUpperCase()}–U+${b.toString(16).toUpperCase()}`,
+    );
+  }
   for (const [from, to] of [
     [a, b],
     [b, a],
@@ -336,6 +376,7 @@ console.log(`Wrote ${OUT_PATH} (${(rawBytes / 1024).toFixed(0)}KB raw)`);
 console.log(`REDUCE_BY_UCS keys: ${Object.keys(serializedReduceByUcs).length}`);
 console.log(`REDUCE_BY_IVS keys (IVS + SVS): ${Object.keys(serializedReduceByIvs).length}`);
 console.log(`VARIANT_ADJACENCY keys: ${Object.keys(serializedAdjacency).length}`);
+console.log(`candidates dropped as 付記=別字 (a different character): ${differentCharacterCandidatesDropped}`);
 const malformedKeys = Object.keys(serializedReduceByIvs).filter((k) => !/^[0-9a-f]+_[0-9a-f]+$/.test(k));
 if (malformedKeys.length > 0) {
   throw new Error(

@@ -15,9 +15,13 @@ First release. Not yet published to npm; `npm publish` is a manual step.
   representative pick as `unique`, or `null` when the candidates are tied
   under a documented heuristic rather than guessing between them, and
   reports which table entry answered via `resolvedVia`.
-- `isVariant(a, b)` — whether two characters are directly related in the MJ
-  variant graph. Deliberately not the transitive closure, which would
-  over-merge characters linked only through weakly-evidenced categories.
+- `isVariant(a, b, options?)` — whether two characters are directly related
+  in the MJ variant graph. Deliberately not the transitive closure, which
+  would over-merge characters linked only through weakly-evidenced
+  categories. `{ includeInferred: false }` restricts the answer to relations
+  an authority recorded, which is what makes isVariant("井", "牛") false;
+  it defaults to true because the strict setting also drops real pairs
+  (see below).
 - `getVariants(char)` — enumerate directly related characters with evidence,
   for query expansion. Order carries no meaning. Each result carries
   `inferred`, distinguishing edges an authority recorded from the ~10% that
@@ -37,8 +41,40 @@ First release. Not yet published to npm; `npm publish` is a manual step.
 - Bundled data snapshots with provenance (source, version, retrieval date,
   SHA-256). Nothing is fetched over the network at build or run time.
 
+### Fixed
+
+- Characters the 民一2842号通達別表 誤字俗字・正字一覧表 annotates 付記=別字
+  ("a different character") were being folded onto exactly the character the
+  notice distinguishes them from: 96 of the 113 reachable cases, including
+  㐲→伏, 㕍→雁, 㬌→景 and 䇦→英. IPA's own reference program drops such a
+  target from every category of the entry; the table builder now does the
+  same, removing 314 candidates. One case survives (腈→晴) because it is
+  reached through a two-hop chain rather than directly, and the reference
+  program does single-step conversion only.
+
 ### Behavior worth calling out
 
+- Inferred edges are included by default, and the option to exclude them
+  costs more than it looks. MJ registers a shrink relation only for a glyph
+  that needs shrinking, so two characters that are both already in JIS X
+  0213 have no recorded edge and co-candidacy is the only link the data has:
+  `{ includeInferred: false }` therefore answers false for 猫/貓, 摂/攝,
+  併/倂, 靱/靭 and 桝/枡, and leaves 34 characters with no variants at all.
+  The README says so next to the option.
+- `toMatchingKey` returns the normalized input alongside the key, because
+  `unresolved[].index` indexes that rather than the caller's own string, and
+  normalization can push the offset past the end of it (NFKC turns ㍿ into
+  four characters).
+- `isVariant` and `getVariants` reject two or more variation selectors on one
+  base character, matching `reduce`. They previously accepted such input
+  silently and answered for the base character alone.
+- `reduce().unique` is not normalized and is not "the JIS X 0213 form" of the
+  input. It can be a CJK compatibility ideograph (165 source characters —
+  `reduce("楳").unique` is U+FA44), and because MJ's JIS包摂規準 evidence
+  carries neither a rank nor a hop count it never wins the selection, so a
+  character MJ records as already representable can still be folded
+  (`reduce("㐂").unique` is 喜). Both are documented in the README now;
+  neither is a change in behavior.
 - Standard Variation Selectors are accepted only in U+FE00–U+FE0D. U+FE0E and
   U+FE0F are Unicode's presentation selectors, and treating U+FE0F as a
   variation selector meant silently deleting it from ordinary text containing

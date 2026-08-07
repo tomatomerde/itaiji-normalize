@@ -73,7 +73,7 @@ getVariants("崎");
 // [{ char: "㟢", basis: [...] }, { char: "嵜", basis: [...] }, ...]
 
 toMatchingKey("田中﨑");
-// { key: "田中崎", unresolved: [] }
+// { key: "田中崎", normalized: "田中﨑", unresolved: [] }
 ```
 
 ### `reduce(char): ReduceResult`
@@ -98,7 +98,43 @@ failing that, the lowest hop count recorded in a family register notice;
 failing that, it returns `null` rather than picking arbitrarily (e.g. by
 code point). This is an original heuristic documented in
 [`src/reduce.ts`](./src/reduce.ts) — not a port of any other tool's
-algorithm.
+algorithm. MJ itself does not prescribe one: its published guidance says
+that when several candidates are listed you should judge the actual target
+from the context the character is used in, and offers rules such as
+"prefer the 常用漢字" or "prefer the lowest JIS code" only as examples. The
+rank and hop fields are this package's reading of the data, not an
+instruction the data carries.
+
+IPA does publish a reference program that picks one candidate
+([mandel59/mj2jisx0213](https://github.com/mandel59/mj2jisx0213), MIT,
+© 2015 IPA), and **this package's order is not that one.** The reference
+takes JIS包摂規準 first when present, then the family-register notices (by
+hop count), and treats MOJ Notice 582's rank as the *last* resort; it then
+breaks remaining ties by preferring 常用漢字, then 人名用漢字 by JIS level.
+The difference follows from a different goal: the reference produces a
+JIS X 0213 conversion table, so "this glyph is already representable" ends
+the question, whereas this package builds matching keys, where folding 㐂
+onto 喜 is the point. Measured over the shipped tables, rank and hop pick
+different winners for 251 source glyphs, and rank picks the more common JIS
+level in 154 of them — but the rarer one in 49. If you need the reference
+behavior, use the reference.
+
+Two consequences of that heuristic are worth knowing before you use
+`unique` as a key:
+
+- **`unique` can be a CJK compatibility ideograph** (165 source characters),
+  and those are not NFKC-stable: `reduce("楳").unique` is U+FA44, which NFKC
+  turns into U+6885 梅. `toMatchingKey` normalizes after every hop so its
+  key is unaffected — if you build keys from `unique` yourself, normalize
+  it.
+- **A character that MJ says needs no shrinking can still be replaced.** The
+  JIS包摂規準・UCS統合規則 category usually names the character itself, which
+  is MJ's way of saying "already representable"; that entry carries neither
+  a rank nor a hop count, so it never wins the comparison above. For 1,277
+  source characters the result is a genuine fold (`reduce("㐂").unique` is
+  喜, `reduce("㠀").unique` is 島) — useful for name matching, but it means
+  `unique` is not "the JIS X 0213 form of this glyph". For 54 more the
+  self-candidate ties with another and `unique` is `null`.
 
 `resolvedVia` reports which table entry answered the lookup: `"ivs"` or
 `"svs"` when the input's own variation sequence was found, `"base"` when it
@@ -110,7 +146,7 @@ Note that `reduce` performs a **single** step of the relation. Many
 characters need several before reaching one that reduces to itself, so for
 matching keys use `toMatchingKey`, which iterates to that fixed point.
 
-### `isVariant(a, b): boolean`
+### `isVariant(a, b, options?): boolean`
 
 True if `a` and `b` are directly connected in the MJ variant graph: one
 reduces to the other, or both are recorded as alternate JIS-representable
@@ -121,6 +157,45 @@ that would over-merge distinct characters if treated as transitively equal.
 See [`docs/phase0-report.md`](./docs/phase0-report.md) #6 for the component
 sizes we measured.
 
+Returns `false` for a character against itself — this answers "are these two
+*different* characters variants of each other", so write
+`a === b || isVariant(a, b)` if you want an equivalence check.
+
+#### `includeInferred` — recall or precision
+
+`{ includeInferred?: boolean }`, default `true`. Inferred edges (see
+`getVariants` below) are the ~10% where the two characters are related only
+through being candidates of one shared MJ glyph. `getVariants` hands that
+flag back per neighbour; a boolean cannot, so `isVariant` takes the option
+instead.
+
+```ts
+isVariant("井", "牛");                            // true  — both replace a third glyph
+isVariant("井", "牛", { includeInferred: false }); // false
+```
+
+**The default is `true` because the strict setting also loses real variant
+pairs, not just spurious ones.** MJ registers a shrink relation only for a
+glyph that *needs* shrinking, so two characters that are both already in
+JIS X 0213 have no recorded edge between them and co-candidacy is the only
+link the data has — which is the shape of many 新字体/旧字体 pairs:
+
+```ts
+// all true by default, all false with { includeInferred: false }
+isVariant("猫", "貓");
+isVariant("摂", "攝");
+isVariant("併", "倂");
+isVariant("靱", "靭");
+isVariant("桝", "枡");
+```
+
+34 characters have nothing but inferred edges, so the strict setting leaves
+them with no variants at all. Recorded relations are unaffected either way:
+沢–澤, 辺–邊, 斉–齊, 竜–龍, 桜–櫻, 国–國, 髙–高, 﨑–崎 are `true` in both.
+
+Use `false` when a match is an assertion someone could be held to, and the
+default when you are expanding a search.
+
 ### `getVariants(char): Variant[]`
 
 Lists every character directly related to `char` (see `isVariant` above),
@@ -129,7 +204,7 @@ expansion — e.g. searching for "崎" and also matching documents containing
 "﨑".
 
 **Check `inferred` before quoting `basis` as an authority's word on the
-pair.** About 10% of the graph's edges (3,000 of 30,766) exist only because
+pair.** About 10% of the graph's edges (2,999 of 30,650) exist only because
 both characters are candidates of one shared MJ glyph, and on those the
 `basis` describes that shared relationship rather than a statement about the
 two characters themselves. MOJ Notice 582 says 齍 may be written 斉 or 資;
@@ -138,14 +213,27 @@ are interchangeable — so `getVariants("斉")` reports 資 with
 `inferred: true`, while 齍, which the notice does name, comes back with
 `inferred: false`.
 
-### `toMatchingKey(text, options?): { key, unresolved }`
+### `toMatchingKey(text, options?): { key, normalized, unresolved }`
 
 Builds a name-matching key by reducing every character in `text` to a stable
 representative — repeatedly, until it reaches a character that reduces to
 itself, since most characters need more than one step. Characters that
-cannot be resolved are left unchanged in `key` and reported in `unresolved`
-with their index in the (normalized) string. This function never silently
-guesses.
+cannot be resolved are left unchanged in `key` and reported in `unresolved`.
+This function never silently guesses.
+
+**`unresolved[].index` indexes `normalized`, not your input string.**
+Normalization changes lengths, so the offset can point past the end of what
+you passed in — slice `normalized`:
+
+```ts
+const r = toMatchingKey("㍿㖒");   // NFKC turns ㍿ into 株式会社
+r.normalized;                      // "株式会社㖒"
+r.unresolved[0].index;             // 4 — past the end of the 2-char input
+r.normalized.slice(4);             // "㖒"  ✓
+```
+
+`normalized` is the input after Unicode normalization and before any MJ
+reduction; with `unicodeNormalize: false` it equals the input.
 
 `reason` is one of:
 
@@ -190,7 +278,7 @@ ideographs distinct.
 MJ glyph names in the Character Information List frequently carry an IVS
 (Ideographic Variation Selector, U+E0100–U+E01EF) or SVS — about 11,000 of
 the ~59,000 MJ entries in the version this package was built from, producing
-9,973 variation-sequence lookup keys. `reduce`, `isVariant`, and
+9,946 variation-sequence lookup keys. `reduce`, `isVariant`, and
 `getVariants` all accept a base character immediately followed by one
 variation selector as a single input unit. If the specific sequence isn't
 found, `reduce` falls back to the base character's entry and says so via
@@ -239,7 +327,7 @@ those explicitly.
 
 - Character coverage: the union of the MJ character set (戸籍統一文字 +
   住基ネット統一文字, ~58,900 MJ glyphs in Ver.006.02) reducible to JIS X
-  0213, giving 30,395 distinct source characters and 9,973 variation-sequence
+  0213, giving 30,344 distinct source characters and 9,946 variation-sequence
   keys. Ideographs outside MJ (e.g. Chinese simplified forms such as 龟) are
   not covered — `reduce`/`getVariants` return no candidates for them, and
   `toMatchingKey` reports them as `"no-candidate"`.

@@ -27,6 +27,25 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Guards the root of the chain below: everything generated is derived
+      # from these two files, so silent corruption of a snapshot would flow
+      # into the tables while every downstream check still agreed with itself.
+      - name: Verify data snapshots against the hashes in PROVENANCE.md
+        run: ./scripts/verify-snapshots.sh
+      # The generated data is a two-stage chain:
+      #   mji.00602.xlsx --extract-mji.py--> mji-list.tsv --build-tables--> tables.ts
+      # Only the second stage used to be checked, which left the first stage
+      # free to drift: editing extract-mji.py or replacing the xlsx snapshot
+      # would leave the committed TSV stale, and because build:tables consumes
+      # the stale TSV, tables.ts would still match and CI would stay green.
+      # Both links are verified now.
+      - name: Verify data/generated/mji-list.tsv matches the xlsx snapshot
+        run: |
+          python3 scripts/extract-mji.py data/snapshot/mji.00602.xlsx data/generated/mji-list.tsv
+          git diff --exit-code data/generated/mji-list.tsv || {
+            echo "::error::data/generated/mji-list.tsv is out of date relative to data/snapshot/mji.00602.xlsx. Re-run 'python3 scripts/extract-mji.py data/snapshot/mji.00602.xlsx data/generated/mji-list.tsv' and commit the result.";
+            exit 1;
+          }
       - name: Verify src/generated/tables.ts matches the committed snapshots
         run: |
           npm run build:tables
