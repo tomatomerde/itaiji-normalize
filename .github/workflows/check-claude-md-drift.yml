@@ -1,25 +1,39 @@
 name: Check CLAUDE.md drift
 
-# Adapted from dev-standards' examples/check-claude-md-drift.yml.
+# NOTE FOR CONTRIBUTORS: this is a maintainer-only housekeeping check, and it is
+# not something your pull request has to satisfy. It compares the second half of
+# CLAUDE.md against a shared template kept in a private repository you cannot
+# see; it only ever emits a warning and never fails the build. On a pull request
+# from a fork the job still runs and passes, but the comparison is skipped with
+# a notice, because GitHub does not pass secrets to fork-triggered workflows.
+# Nothing about your contribution is being judged here, and there is nothing
+# for you to fix.
+#
+# Copy this file into a project repository's .github/workflows/ directory.
 #
 # It compares the common section ("ここから下は共通" and below) of the
 # project's CLAUDE.md against the canonical template in the dev-standards
 # repository, and emits a warning annotation on drift. It never fails the
 # build: drift is a reminder to sync, not an error.
 #
-# Local change vs. the upstream example: the upstream version passes
-# secrets.DEV_STANDARDS_TOKEN straight to actions/checkout, so when the secret
-# is not configured the checkout hard-fails with "Input required and not
-# supplied: token" — which contradicts the "never fails the build" contract
-# above and paints every pull request red until a human sets the secret. Here
-# the token is probed first and the comparison is skipped with a notice when
-# it is absent. (secrets are not available in `if:` expressions, so the token
-# is mapped to a job-level env var and the step conditions test that.)
+# When DEV_STANDARDS_TOKEN is not configured, the comparison is skipped with
+# a notice instead of failing — passing an unset secret straight to
+# actions/checkout would hard-fail the job with "Input required and not
+# supplied: token". (secrets can't be tested directly in `if:` expressions
+# here, so the token is mapped to a job-level env var and probed in a step.)
+#
+# A token that is set but no longer works is a separate case: the probe only
+# tests for emptiness, so an expired or revoked PAT reaches actions/checkout
+# and fails there. That step is therefore continue-on-error, and the
+# comparison is gated on it having succeeded, so the job stays green and
+# reports the broken token as a warning instead. Fine-grained PATs expire, so
+# this is a matter of when, not whether.
 #
 # Requirements (manual, one-time per project repo):
 #   - A fine-grained PAT with Contents: Read access to
 #     tomatomerde/dev-standards, stored as the Actions secret
-#     DEV_STANDARDS_TOKEN (dev-standards is private).
+#     DEV_STANDARDS_TOKEN (dev-standards is private). It expires; renewing it
+#     is what the warning above is for.
 
 on:
   pull_request:
@@ -33,7 +47,7 @@ jobs:
     env:
       DEV_STANDARDS_TOKEN: ${{ secrets.DEV_STANDARDS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check whether the dev-standards token is configured
         id: token
         run: |
@@ -41,17 +55,23 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice file=CLAUDE.md::DEV_STANDARDS_TOKEN が未設定のため CLAUDE.md のドリフト検査をスキップしました。有効化するには Actions シークレットに設定してください。"
+            echo "::notice file=CLAUDE.md::Maintainer-only check skipped: DEV_STANDARDS_TOKEN is not available (expected on pull requests from forks — nothing for contributors to do here). ／ メンテナ用チェックをスキップしました。fork からの PR では正常な動作で、コントリビュータ側の対応は不要です。有効化はメンテナが Actions シークレットで行います。"
           fi
       - name: Check out the canonical template
+        id: canonical
         if: steps.token.outputs.present == 'true'
-        uses: actions/checkout@v4
+        continue-on-error: true
+        uses: actions/checkout@v7
         with:
           repository: tomatomerde/dev-standards
           token: ${{ secrets.DEV_STANDARDS_TOKEN }}
           path: .dev-standards
+      - name: Report a token that no longer works
+        if: steps.canonical.outcome == 'failure'
+        run: |
+          echo "::warning file=CLAUDE.md::Maintainer-only check could not run: DEV_STANDARDS_TOKEN is set but the checkout of dev-standards failed (an expired or revoked PAT looks like this). Contributors can ignore this. ／ メンテナ用チェックを実行できませんでした。DEV_STANDARDS_TOKEN は設定されていますが dev-standards の checkout に失敗しています（PAT の失効・失権でこうなります）。コントリビュータ側の対応は不要です。"
       - name: Compare common section against canonical template
-        if: steps.token.outputs.present == 'true'
+        if: steps.canonical.outcome == 'success'
         run: |
           extract() { awk '/^# ここから下は共通/,0' "$1"; }
           if diff <(extract .dev-standards/CLAUDE.template.md) <(extract CLAUDE.md); then
