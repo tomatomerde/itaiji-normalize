@@ -1,0 +1,57 @@
+# NOTE FOR CONTRIBUTORS: this checks that nobody hand-edited the shared block
+# in CLAUDE.md. That block is generated — it comes from a template repository
+# and arrives here through an automated pull request. If this job fails on your
+# pull request, you edited between the markers; revert that part and the check
+# goes green. Nothing else about your contribution is being judged here.
+#
+# This file is generated. It is distributed from dev-standards/common/workflows/
+# and overwritten on every sync — edit it there, not here.
+#
+# Why a hash and not a comparison against the template repository: the template
+# is private, so comparing against it needed a personal access token stored as a
+# secret in every project. Tokens expire, and an expired one broke the job. The
+# hash is recorded here at sync time, so this check needs no secret and no
+# network, and it works unchanged on pull requests from forks.
+#
+# What this does NOT detect: being behind the template. That is the sync
+# workflow's job — it opens a pull request here when the template moves.
+
+name: Check common section integrity
+
+on:
+  pull_request:
+    paths:
+      - CLAUDE.md
+      - .claude/common.sha256
+      - .claude/common-hash.sh
+      - .github/workflows/check-common-integrity.yml
+  push:
+    branches: [main]
+    paths:
+      - CLAUDE.md
+      - .claude/common.sha256
+      - .claude/common-hash.sh
+      - .github/workflows/check-common-integrity.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare the common section against its recorded hash
+        run: |
+          set -euo pipefail
+          expected=$(tr -d '[:space:]' < .claude/common.sha256)
+          actual=$(bash .claude/common-hash.sh CLAUDE.md)
+          if [ "$expected" = "$actual" ]; then
+            echo "Common section matches its recorded hash ($actual)."
+            exit 0
+          fi
+          echo "::error file=CLAUDE.md::CLAUDE.md の共通部分が記録されたハッシュと一致しません。マーカーの内側は dev-standards から配られる生成物なので、手で編集しないでください。共通のルールを変えたい場合は dev-standards 側を直すと、このリポジトリに同期 PR が届きます。 ／ The shared block in CLAUDE.md does not match its recorded hash. It is generated: revert your edits between the markers, and change the template repository instead."
+          echo "expected: $expected"
+          echo "actual:   $actual"
+          exit 1
