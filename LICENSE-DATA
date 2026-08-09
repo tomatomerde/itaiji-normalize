@@ -38,7 +38,7 @@ Also included in the package for provenance, and likewise under this license:
 - data/snapshot/PROVENANCE.md (source, version, retrieval date and SHA-256 of
   each original file)
 
-In the source repository (https://github.com/tomatomerde/itaiji-library) the
+In the source repository (https://github.com/tomatomerde/itaiji-normalize) the
 same data additionally exists as:
 
 - data/snapshot/MJShrinkMap.1.2.0.json (original snapshot, unmodified)

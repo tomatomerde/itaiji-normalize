@@ -314,7 +314,7 @@ data. See `LICENSE-DATA` for details.
 
 Original data files are kept unmodified in `data/snapshot/` in the source
 repository, with retrieval dates, versions, and SHA-256 hashes recorded in
-[`PROVENANCE.md`](https://github.com/tomatomerde/itaiji-library/blob/main/data/snapshot/PROVENANCE.md),
+[`PROVENANCE.md`](https://github.com/tomatomerde/itaiji-normalize/blob/main/data/snapshot/PROVENANCE.md),
 which is also shipped inside the npm package. Nothing is fetched from the
 network at build or run time — regenerating the tables from an updated
 snapshot is a local script (`npm run build:tables`).

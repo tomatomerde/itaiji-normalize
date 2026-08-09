@@ -278,7 +278,7 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 
 原本データファイルはソースリポジトリの `data/snapshot/` に無改変で保持し、
 取得日・バージョン・SHA-256ハッシュを
-[`PROVENANCE.md`](https://github.com/tomatomerde/itaiji-library/blob/main/data/snapshot/PROVENANCE.md)
+[`PROVENANCE.md`](https://github.com/tomatomerde/itaiji-normalize/blob/main/data/snapshot/PROVENANCE.md)
 に記録している(このファイルは npm パッケージにも同梱している)。ビルド時・
 実行時とも外部ネットワークへは一切アクセスしない。最新のスナップショットからの
 テーブル再生成はローカルスクリプト(`npm run build:tables`)で行う。
