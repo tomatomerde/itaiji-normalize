@@ -112,11 +112,11 @@ jobs:
           node --version
           mkdir -p /tmp/consumer && cd /tmp/consumer
           npm init -y > /dev/null
-          npm install /tmp/mj-shrink-map-*.tgz
+          npm install /tmp/itaiji-normalize-*.tgz
           # Quoted heredoc: the runner's shell must not expand anything here.
           cat > smoke.cjs <<'EOF'
           const assert = require("node:assert/strict");
-          const m = require("mj-shrink-map");
+          const m = require("itaiji-normalize");
           assert.equal(m.reduce("﨑").unique, "崎");                  // 﨑 -> 崎
           assert.equal(m.reduce("髙").unique, "高");                  // 髙 -> 高
           assert.equal(m.toMatchingKey("﨑田").key, "崎田");  // 﨑田 -> 崎田
@@ -126,7 +126,7 @@ jobs:
           EOF
           cat > smoke.mjs <<'EOF'
           import assert from "node:assert/strict";
-          import { reduce, toMatchingKey, isVariant, getVariants } from "mj-shrink-map";
+          import { reduce, toMatchingKey, isVariant, getVariants } from "itaiji-normalize";
           assert.equal(reduce("﨑").unique, "崎");
           assert.equal(toMatchingKey("﨑田").key, "崎田");
           assert.equal(isVariant("﨑", "崎"), true);
