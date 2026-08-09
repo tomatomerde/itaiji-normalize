@@ -1,6 +1,11 @@
 # itaiji-normalize
 
-[English README is here](./README.md)
+[![CI](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Data: CC BY-SA 2.1 JP](https://img.shields.io/badge/data-CC%20BY--SA%202.1%20JP-lightgrey.svg)](./LICENSE-DATA)
+[![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+
+[English](./README.md) | **日本語**
 
 IPA の**MJ縮退マップ**(ハードコード辞書ではなく公的データ)を根拠とする、
 日本語異体字の縮退変換・等価判定・名寄せキー生成ライブラリ。
@@ -41,7 +46,7 @@ JIS表現可能なペア(啞→唖、鷗→鴎 等)は、どちらも縮退の�
 npm install itaiji-normalize
 ```
 
-## API
+## 使用例
 
 ```ts
 import { reduce, isVariant, getVariants, toMatchingKey } from "itaiji-normalize";
@@ -67,6 +72,36 @@ getVariants("崎");
 toMatchingKey("田中﨑");
 // { key: "田中崎", normalized: "田中﨑", unresolved: [] }
 ```
+
+## FAQ: なぜ `reverse()` がないのか
+
+MJ縮退マップは多対一の対応関係(複数の MJ 字形が同じ JIS 表現可能字に縮退
+する)である。逆方向、つまり「この新字体から、元の旧字体を一意に求める」に
+は、一般には唯一の正解が存在しない。実装前調査では、1つの縮退先に対して
+4つ以上の異なる縮退元候補が見つかるケースがあり、多くの場合それ以上絞り込
+む根拠がなかった。`reverse()` が黙って1つを選んでしまうと、もっともらしい
+が根拠のない出力を生んでしまう。`getVariants()` で根拠付きの候補を列挙する
+ので、選択は文脈(または人間の判断)を持つ呼び出し側で責任を持って行ってほ
+しい。
+
+## サポート範囲
+
+- 対応文字集合: MJ文字集合(戸籍統一文字+住基ネット統一文字、Ver.006.02 で
+  約58,900字)のうち JIS X 0213 へ縮退可能なもので、縮退元 30,344 字・
+  変異シーケンスキー 9,946 件。MJ に含まれない漢字(中国簡体字の 龟 等)は
+  対象外で、`reduce`/`getVariants` は候補ゼロを返し、`toMatchingKey` は
+  `"no-candidate"` として報告する。
+- 曖昧さは常に明示する。複数候補・候補ゼロ・`unique` の判定不能はすべて明示
+  的に表現され、勝手に解決しない。実測分布は
+  [`docs/phase0-report.md`](./docs/phase0-report.md) を参照(MJ全エントリの
+  約39%が縮退候補ゼロ、約49%が候補1つ、約12%が複数候補)。
+- **免責**: 本パッケージは戸籍・法務・金融用途での同一性判断を保証しない。
+  あくまでテキスト正規化の補助であり、法的な同一性の権威ではない。
+- **バージョン `0.x`。API は変わりうる。** 個人プロジェクトであり、対応は
+  ベストエフォートで行う。Issue や Pull Request は歓迎するが、応答時期は保証しない。
+  本ソフトウェアは MIT ライセンスのとおり無保証(as is)で提供する。
+
+## API リファレンス
 
 ### `reduce(char): ReduceResult`
 
@@ -287,23 +322,6 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 `dist/index.js` と `dist/index.cjs` にコンパイルされて含まれる。
 `LICENSE-DATA` はこの2ファイルを明示している。
 
-## サポート範囲
-
-- 対応文字集合: MJ文字集合(戸籍統一文字+住基ネット統一文字、Ver.006.02 で
-  約58,900字)のうち JIS X 0213 へ縮退可能なもので、縮退元 30,344 字・
-  変異シーケンスキー 9,946 件。MJ に含まれない漢字(中国簡体字の 龟 等)は
-  対象外で、`reduce`/`getVariants` は候補ゼロを返し、`toMatchingKey` は
-  `"no-candidate"` として報告する。
-- 曖昧さは常に明示する。複数候補・候補ゼロ・`unique` の判定不能はすべて明示
-  的に表現され、勝手に解決しない。実測分布は
-  [`docs/phase0-report.md`](./docs/phase0-report.md) を参照(MJ全エントリの
-  約39%が縮退候補ゼロ、約49%が候補1つ、約12%が複数候補)。
-- **免責**: 本パッケージは戸籍・法務・金融用途での同一性判断を保証しない。
-  あくまでテキスト正規化の補助であり、法的な同一性の権威ではない。
-- **バージョン `0.x`。API は変わりうる。** 個人プロジェクトであり、対応は
-  ベストエフォートで行う。Issue や Pull Request は歓迎するが、応答時期は保証しない。
-  本ソフトウェアは MIT ライセンスのとおり無保証(as is)で提供する。
-
 ## 既知の制約
 
 推定ではなく実測値。採用前に検討してほしい。
@@ -345,17 +363,6 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 **CI がカバーしていない範囲。** Node 18/20/22・headless Chromium・workerd 以外の
 ランタイム、とくに Deno・Bun・Chromium 以外のブラウザ。バンドルにエンジン固有の
 要素は無いが、それは推論であって証拠ではないため未検証として扱ってほしい。
-
-## FAQ: なぜ `reverse()` がないのか
-
-MJ縮退マップは多対一の対応関係(複数の MJ 字形が同じ JIS 表現可能字に縮退
-する)である。逆方向、つまり「この新字体から、元の旧字体を一意に求める」に
-は、一般には唯一の正解が存在しない。実装前調査では、1つの縮退先に対して
-4つ以上の異なる縮退元候補が見つかるケースがあり、多くの場合それ以上絞り込
-む根拠がなかった。`reverse()` が黙って1つを選んでしまうと、もっともらしい
-が根拠のない出力を生んでしまう。`getVariants()` で根拠付きの候補を列挙する
-ので、選択は文脈(または人間の判断)を持つ呼び出し側で責任を持って行ってほ
-しい。
 
 ## ロードマップ / v1 非対応
 
