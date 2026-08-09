@@ -38,9 +38,9 @@
     "LICENSE-DATA",
     "data/snapshot/PROVENANCE.md"
   ],
-  "homepage": "https://github.com/tomatomerde/itaiji-library#readme",
+  "homepage": "https://github.com/tomatomerde/itaiji-normalize#readme",
   "bugs": {
-    "url": "https://github.com/tomatomerde/itaiji-library/issues"
+    "url": "https://github.com/tomatomerde/itaiji-normalize/issues"
   },
   "engines": {
     "node": ">=18"
@@ -65,6 +65,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tomatomerde/itaiji-library.git"
+    "url": "git+https://github.com/tomatomerde/itaiji-normalize.git"
   }
 }
