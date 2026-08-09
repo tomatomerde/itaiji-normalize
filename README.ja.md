@@ -1,4 +1,4 @@
-# mj-shrink-map
+# itaiji-normalize
 
 [English README is here](./README.md)
 
@@ -38,13 +38,13 @@ JIS表現可能なペア(啞→唖、鷗→鴎 等)は、どちらも縮退の�
 ## インストール
 
 ```sh
-npm install mj-shrink-map
+npm install itaiji-normalize
 ```
 
 ## API
 
 ```ts
-import { reduce, isVariant, getVariants, toMatchingKey } from "mj-shrink-map";
+import { reduce, isVariant, getVariants, toMatchingKey } from "itaiji-normalize";
 
 reduce("﨑");
 // {

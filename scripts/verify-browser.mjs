@@ -38,7 +38,7 @@ function resolveExecutablePath() {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE = path.join(root, "dist/index.js");
 
-const PAGE = `<!doctype html><meta charset="utf-8"><title>mj-shrink-map browser check</title>
+const PAGE = `<!doctype html><meta charset="utf-8"><title>itaiji-normalize browser check</title>
 <body><pre id="out">running</pre>
 <script type="module">
   import { reduce, isVariant, getVariants, toMatchingKey } from "./index.js";

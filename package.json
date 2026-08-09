@@ -1,5 +1,5 @@
 {
-  "name": "mj-shrink-map",
+  "name": "itaiji-normalize",
   "version": "0.1.0",
   "description": "Grounded itaiji (kanji variant) normalization, equivalence, and matching-key generation using IPA's MJ Shrink Map",
   "keywords": [
