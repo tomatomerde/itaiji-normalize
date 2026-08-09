@@ -339,6 +339,10 @@ those explicitly.
 - **Disclaimer**: this package does not guarantee identity determination for
   family register, legal, or financial use. It is a text-normalization aid,
   not a legal-equivalence authority.
+- **Version `0.x`: the API may change.** This is a personal project,
+  maintained on a best-effort basis. Issues and pull requests are welcome, but
+  response times are not guaranteed. The software is provided as is, without
+  warranty of any kind, as stated in the MIT licence.
 
 ## Known limitations
 
