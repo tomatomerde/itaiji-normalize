@@ -1,6 +1,11 @@
 # itaiji-normalize
 
-[日本語版 README はこちら](./README.ja.md)
+[![CI](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Data: CC BY-SA 2.1 JP](https://img.shields.io/badge/data-CC%20BY--SA%202.1%20JP-lightgrey.svg)](./LICENSE-DATA)
+[![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+
+**English** | [日本語](./README.ja.md)
 
 Grounded kanji-variant (itaiji, 異体字) normalization, equivalence checking,
 and matching-key generation for Japanese text, backed by IPA's **MJ Shrink
@@ -49,7 +54,7 @@ distinction matters for you.
 npm install itaiji-normalize
 ```
 
-## API
+## At a glance
 
 ```ts
 import { reduce, isVariant, getVariants, toMatchingKey } from "itaiji-normalize";
@@ -75,6 +80,42 @@ getVariants("崎");
 toMatchingKey("田中﨑");
 // { key: "田中崎", normalized: "田中﨑", unresolved: [] }
 ```
+
+## FAQ: why is there no `reverse()`?
+
+The MJ Shrink Map is a many-to-one relation (many MJ glyphs reduce to the
+same JIS-representable form). Going the other way — "given this new-style
+character, what was the one original old-style character?" — has no single
+correct answer in general: our phase 0 study found up to 4+ distinct source
+candidates for some targets, with no additional evidence to break the tie in
+many cases. A `reverse()` that silently picked one would produce
+plausible-looking but unjustified output. Use `getVariants()` to enumerate
+the candidates with their evidence, and make the selection in your own
+application where you have the context (or human judgment) to do so
+responsibly.
+
+## Support and scope
+
+- Character coverage: the union of the MJ character set (戸籍統一文字 +
+  住基ネット統一文字, ~58,900 MJ glyphs in Ver.006.02) reducible to JIS X
+  0213, giving 30,344 distinct source characters and 9,946 variation-sequence
+  keys. Ideographs outside MJ (e.g. Chinese simplified forms such as 龟) are
+  not covered — `reduce`/`getVariants` return no candidates for them, and
+  `toMatchingKey` reports them as `"no-candidate"`.
+- Ambiguity is never hidden: multiple/zero candidates and ambiguous
+  `unique` results are explicit, not silently resolved. See
+  [`docs/phase0-report.md`](./docs/phase0-report.md) for the measured
+  distribution (about 39% of MJ entries have zero shrink candidates, about
+  49% exactly one, and about 12% multiple).
+- **Disclaimer**: this package does not guarantee identity determination for
+  family register, legal, or financial use. It is a text-normalization aid,
+  not a legal-equivalence authority.
+- **Version `0.x`: the API may change.** This is a personal project,
+  maintained on a best-effort basis. Issues and pull requests are welcome, but
+  response times are not guaranteed. The software is provided as is, without
+  warranty of any kind, as stated in the MIT licence.
+
+## API reference
 
 ### `reduce(char): ReduceResult`
 
@@ -323,27 +364,6 @@ In the published package the licensed data is not a separate file: it is
 compiled into `dist/index.js` and `dist/index.cjs`. `LICENSE-DATA` names
 those explicitly.
 
-## Support and scope
-
-- Character coverage: the union of the MJ character set (戸籍統一文字 +
-  住基ネット統一文字, ~58,900 MJ glyphs in Ver.006.02) reducible to JIS X
-  0213, giving 30,344 distinct source characters and 9,946 variation-sequence
-  keys. Ideographs outside MJ (e.g. Chinese simplified forms such as 龟) are
-  not covered — `reduce`/`getVariants` return no candidates for them, and
-  `toMatchingKey` reports them as `"no-candidate"`.
-- Ambiguity is never hidden: multiple/zero candidates and ambiguous
-  `unique` results are explicit, not silently resolved. See
-  [`docs/phase0-report.md`](./docs/phase0-report.md) for the measured
-  distribution (about 39% of MJ entries have zero shrink candidates, about
-  49% exactly one, and about 12% multiple).
-- **Disclaimer**: this package does not guarantee identity determination for
-  family register, legal, or financial use. It is a text-normalization aid,
-  not a legal-equivalence authority.
-- **Version `0.x`: the API may change.** This is a personal project,
-  maintained on a best-effort basis. Issues and pull requests are welcome, but
-  response times are not guaranteed. The software is provided as is, without
-  warranty of any kind, as stated in the MIT licence.
-
 ## Known limitations
 
 Measured, not estimated. Please weigh these before adopting.
@@ -390,19 +410,6 @@ side.
 Chromium and workerd — notably Deno, Bun, and non-Chromium browsers. Nothing
 in the bundle is engine-specific, but that is reasoning, not evidence, so
 treat those as unverified.
-
-## FAQ: why is there no `reverse()`?
-
-The MJ Shrink Map is a many-to-one relation (many MJ glyphs reduce to the
-same JIS-representable form). Going the other way — "given this new-style
-character, what was the one original old-style character?" — has no single
-correct answer in general: our phase 0 study found up to 4+ distinct source
-candidates for some targets, with no additional evidence to break the tie in
-many cases. A `reverse()` that silently picked one would produce
-plausible-looking but unjustified output. Use `getVariants()` to enumerate
-the candidates with their evidence, and make the selection in your own
-application where you have the context (or human judgment) to do so
-responsibly.
 
 ## Roadmap / not in v1
 
