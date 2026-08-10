@@ -1,0 +1,347 @@
+name: Release
+
+# Publishes itaiji-normalize to npm.
+#
+# Two triggers:
+#   - tag push (`v1.2.3`): the real release. dry_run is forced off, the tag
+#     must match package.json's version, CHANGELOG.md must have a dated
+#     section for it, and a GitHub Release is created from that section.
+#   - workflow_dispatch: the same pipeline with dry_run defaulting to true,
+#     for exercising the release without publishing, or for re-running a
+#     release that failed after publishing (npm view detects the version is
+#     already there and skips). A dispatch run has no tag, so the version
+#     and CHANGELOG guards do not apply — it publishes whatever is on disk,
+#     which is why the version and dist-tag are printed to the summary.
+#
+# `npm publish` is the only step a dry run cannot exercise; everything before
+# it — build, tests, data-snapshot verification, packing, tarball assertions,
+# type resolution, and the Node 18 dual-format smoke test against the packed
+# artifact — runs identically either way. So a green dry run means the
+# release would have worked, not merely that the YAML parses.
+#
+# Browser and Cloudflare Workers support is verified by ci.yml on every push
+# to main rather than here: those jobs need a Chromium download and workerd,
+# and they exercise the built bundle, which is the same bundle this workflow
+# packs from the same commit. Releasing from a commit whose CI is red is the
+# thing to avoid, not the missing duplicate job.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run every check but skip the actual npm publish'
+        type: boolean
+        default: true
+
+# contents: write creates the GitHub Release on a tag push.
+# id-token: write lets npm mint a provenance attestation for the tarball.
+permissions:
+  contents: write
+  id-token: write
+
+# One release at a time. Never cancel one in flight: an interrupted
+# `npm publish` is worse than a queued run waiting.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Determine release plan
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            case "$TAG" in
+              v[0-9]*) ;;
+              *)
+                echo "::error::Unrecognized tag '$TAG'. Expected v<version>, e.g. v0.1.0 — see docs/releasing.md." >&2
+                exit 1
+                ;;
+            esac
+            {
+              echo "TAG=$TAG"
+              echo "EXPECTED_VERSION=${TAG#v}"
+              echo "CHECK_VERSION=true"
+              echo "DRY_RUN=false"
+              echo "CREATE_RELEASE=true"
+            } >> "$GITHUB_ENV"
+          else
+            {
+              echo "CHECK_VERSION=false"
+              echo "DRY_RUN=${{ github.event.inputs.dry_run }}"
+              echo "CREATE_RELEASE=false"
+            } >> "$GITHUB_ENV"
+          fi
+
+      # The dist-tag is surfaced because it is the one field whose wrong
+      # value is silent and public: a prerelease landing on `latest` looks
+      # like a successful release right up until someone installs.
+      - name: Log target version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          case "$v" in *-*) t=next ;; *) t=latest ;; esac
+          echo "DIST_TAG=$t" >> "$GITHUB_ENV"
+          echo "Will publish itaiji-normalize @ $v (dist-tag: $t)"
+          {
+            echo "## Release plan"
+            echo ""
+            echo "- Trigger: \`${{ github.event_name }}\`"
+            echo "- dry_run: \`$DRY_RUN\`"
+            echo "- itaiji-normalize: \`$v\` → dist-tag \`$t\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify tag matches package version
+        if: env.CHECK_VERSION == 'true'
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$version" != "$EXPECTED_VERSION" ]; then
+            echo "::error::package.json is at $version but tag $TAG expects $EXPECTED_VERSION" >&2
+            exit 1
+          fi
+          echo "package.json matches $TAG."
+
+      # Match the version as a whole field, not as a line prefix. A prefix
+      # match makes "## 0.1.0" also match "## 0.1.0-rc.1 — …", and because
+      # both headings match, the "stop at the next heading" rule never fires
+      # and the extracted section runs to the end of the file.
+      - name: Check CHANGELOG has a dated section for this release
+        if: env.CHECK_VERSION == 'true'
+        shell: bash
+        run: |
+          heading="## $EXPECTED_VERSION"
+          section=$(awk -v want="$EXPECTED_VERSION" '
+            /^## / { if ($2 == want) { found=1; print; next } else if (found) exit }
+            found { print }
+          ' CHANGELOG.md)
+
+          problem=""
+          if [ -z "$section" ]; then
+            problem="No '$heading' section found in CHANGELOG.md."
+          elif echo "$section" | grep -qi 'unreleased'; then
+            problem="CHANGELOG.md's '$heading' section still says 'unreleased'."
+          fi
+
+          if [ -n "$problem" ]; then
+            echo "::error::$problem Replace it with the release date before tagging (see docs/releasing.md)." >&2
+            exit 1
+          fi
+          echo "CHANGELOG.md has a dated section for $EXPECTED_VERSION."
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # The bundled data is the whole point of this package, so publishing
+      # without re-verifying the chain that produces it would mean shipping
+      # tables nobody checked against their source. Same two links ci.yml
+      # guards: snapshot hashes, then snapshot -> TSV -> tables.ts.
+      - name: Verify data snapshots against the hashes in PROVENANCE.md
+        run: ./scripts/verify-snapshots.sh
+
+      - name: Verify generated data is in sync with the snapshots
+        run: |
+          python3 scripts/extract-mji.py data/snapshot/mji.00602.xlsx data/generated/mji-list.tsv
+          git diff --exit-code data/generated/mji-list.tsv || {
+            echo "::error::data/generated/mji-list.tsv is out of date relative to data/snapshot/mji.00602.xlsx." >&2
+            exit 1
+          }
+          npm run build:tables
+          git diff --exit-code src/generated/tables.ts || {
+            echo "::error::src/generated/tables.ts is out of date relative to the committed snapshots." >&2
+            exit 1
+          }
+
+      # `npm publish <tarball>` runs no lifecycle scripts, so prepublishOnly
+      # never fires on the release path — the build above is what puts dist/
+      # in the tarball, not that hook.
+      - name: Pack the tarball
+        run: npm pack --pack-destination "$RUNNER_TEMP/tarballs"
+
+      - name: Summarize tarball contents
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          f="$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+          {
+            echo "## Tarball contents"
+            echo '```'
+            tar -tzf "$f"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Materialize the listing; never pipe `tar` into `grep -q`. `grep -q`
+      # exits at its first match, closing the pipe and killing `tar` with
+      # SIGPIPE, and under `-eo pipefail` that becomes the pipeline's status
+      # — so the check fails *because* the entry was present and matched
+      # early. An absent entry fails it too, so the two outcomes are
+      # indistinguishable and the check can never pass. This bit
+      # jp-address-romaji's release workflow for real on 2026-08-10.
+      - name: Assert tarball contents
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          f="$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+          listing="$RUNNER_TEMP/tarball-listing.txt"
+          tar -tzf "$f" > "$listing"
+
+          fail=false
+          # Both module formats and both type declarations: package.json's
+          # exports promises all four, and a missing one is a runtime or
+          # editor failure for half the users rather than an obvious break.
+          for entry in \
+            package/dist/index.js \
+            package/dist/index.cjs \
+            package/dist/index.d.ts \
+            package/dist/index.d.cts \
+            package/LICENSE \
+            package/LICENSE-DATA \
+            package/data/snapshot/PROVENANCE.md
+          do
+            if ! grep -qx "$entry" "$listing"; then
+              echo "::error::$f is missing $entry" >&2
+              fail=true
+            fi
+          done
+          [ "$fail" = "true" ] && exit 1
+
+          # The generated table is compiled into the bundle rather than
+          # shipped as a data file, so "the data is there" can only be
+          # checked by size — an empty or stub bundle passes the presence
+          # check above. Measured 2,512,700 bytes on 2026-08-10; the floor is
+          # 2,000,000, which is loose enough to survive minifier and data
+          # updates and tight enough that a bundle built without the tables
+          # (~10 KB) cannot pass. `|| true` keeps the message reachable:
+          # under pipefail a zero count would abort the assignment itself.
+          bytes=$(tar -xzOf "$f" package/dist/index.js | wc -c || true)
+          if [ "$bytes" -lt 2000000 ]; then
+            echo "::error::package/dist/index.js is only $bytes bytes; the MJ tables are missing or truncated (expected >= 2000000)." >&2
+            exit 1
+          fi
+          echo "Tarball OK: four entry points, licences, provenance, and a $bytes-byte bundle."
+
+      # Full strict profile, not esm-only: this package ships both ESM and
+      # CJS with separate declarations, so all four resolution modes are
+      # promises it makes and must keep.
+      - name: Check package types (arethetypeswrong)
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npx --yes @arethetypeswrong/cli "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+
+      # Exercise the exact artifact about to be published, on the oldest
+      # runtime the package claims (engines ">=18"), through both module
+      # systems. The test suite cannot run on Node 18 — the dev toolchain
+      # needs 20.12+ — so without this the "Node 18+" promise ships
+      # unverified. Mirrors the smoke-node18 job in ci.yml.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Smoke-test the packed tarball on Node 18 (CJS and ESM)
+        shell: bash
+        run: |
+          node --version
+          version=$(node -p "require('./package.json').version")
+          mkdir -p "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+          # Quoted heredoc: the runner's shell must not expand anything here.
+          cat > smoke.cjs <<'EOF'
+          const assert = require("node:assert/strict");
+          const m = require("itaiji-normalize");
+          assert.equal(m.reduce("﨑").unique, "崎");
+          assert.equal(m.reduce("髙").unique, "高");
+          assert.equal(m.toMatchingKey("﨑田").key, "崎田");
+          assert.equal(m.isVariant("﨑", "崎"), true);
+          assert.ok(m.getVariants("崎").length > 0);
+          console.log("CJS smoke OK on", process.version);
+          EOF
+          cat > smoke.mjs <<'EOF'
+          import assert from "node:assert/strict";
+          import { reduce, toMatchingKey, isVariant, getVariants } from "itaiji-normalize";
+          assert.equal(reduce("﨑").unique, "崎");
+          assert.equal(toMatchingKey("﨑田").key, "崎田");
+          assert.equal(isVariant("﨑", "崎"), true);
+          assert.ok(getVariants("崎").length > 0);
+          console.log("ESM smoke OK on", process.version);
+          EOF
+          node smoke.cjs
+          node smoke.mjs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Written only when this run could actually publish. Writing it during
+      # a dry run, before NPM_TOKEN is known to be set, produces an .npmrc
+      # with an empty token, which can make the `npm view` below fail with
+      # 401 for a reason unrelated to what the dry run is proving.
+      - name: Configure npm auth
+        if: env.DRY_RUN != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::NPM_TOKEN Actions secret is not set. Set it before running a real (non-dry-run) release — see docs/releasing.md." >&2
+            exit 1
+          fi
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+
+      # --tag is not optional. `npm publish` with no --tag moves `latest`
+      # even for a semver prerelease — npm does not special-case them — so
+      # publishing 0.1.0-rc.1 without it would hand every `npm install`
+      # the release candidate, repairable only by publishing a real version
+      # on top.
+      #
+      # `npm view <pkg>@<version>` exits non-zero both when the name does not
+      # exist and when that version does not; either way "not yet published".
+      - name: Publish
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "itaiji-normalize@$version" version >/dev/null 2>&1; then
+            echo "itaiji-normalize@$version is already on npm; skipping."
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "[dry run] would publish itaiji-normalize@$version --tag $DIST_TAG"
+          else
+            npm publish --provenance --tag "$DIST_TAG" "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+          fi
+
+      - name: Remove npm auth
+        if: always()
+        run: rm -f "$HOME/.npmrc"
+
+      - name: Extract changelog section
+        if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
+        shell: bash
+        run: |
+          awk -v want="$EXPECTED_VERSION" '
+            /^## / { if ($2 == want) { found=1; print; next } else if (found) exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            {
+              echo "## $TAG"
+              echo ""
+              echo "See CHANGELOG.md."
+            } > release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
