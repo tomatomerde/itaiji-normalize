@@ -56,7 +56,37 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          registry-url: 'https://registry.npmjs.org'
       - run: npm ci
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships npm
+      # 10.9.x, so without this the publish fails at the very end of the
+      # pipeline with an authentication error that says nothing about
+      # versions. Asserting the version here turns that into an early,
+      # legible failure — and a dry run exercises it, which the publish
+      # itself can never be.
+      - name: Ensure npm supports trusted publishing
+        shell: bash
+        run: |
+          npm install -g npm@latest
+          v=$(npm --version)
+          echo "npm $v"
+          node -e '
+            const [have] = process.argv.slice(1);
+            const need = "11.5.1";
+            const cmp = (a, b) => {
+              const pa = a.split("-")[0].split(".").map(Number);
+              const pb = b.split("-")[0].split(".").map(Number);
+              for (let i = 0; i < 3; i++) {
+                if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+              }
+              return 0;
+            };
+            if (cmp(have, need) < 0) {
+              console.error(`::error::npm ${have} is too old for trusted publishing; ${need} or later is required. The workflow upgrades npm globally, so this means that upgrade did not take effect.`);
+              process.exit(1);
+            }
+          ' "$v"
 
       - name: Determine release plan
         shell: bash
@@ -294,33 +324,6 @@ jobs:
         with:
           node-version: 22
 
-      # Written only when this run could actually publish. Writing it during
-      # a dry run, before NPM_TOKEN is known to be set, produces an .npmrc
-      # with an empty token, which can make the `npm view` below fail with
-      # 401 for a reason unrelated to what the dry run is proving.
-      - name: Configure npm auth
-        if: env.DRY_RUN != 'true'
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NPM_TOKEN" ]; then
-            echo "::error::NPM_TOKEN Actions secret is not set. Set it before running a real (non-dry-run) release — see docs/releasing.md." >&2
-            exit 1
-          fi
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
-
-          # Confirm the token authenticates at all before the publish step.
-          # This catches a revoked, expired or mistyped token, which would
-          # otherwise surface as a bare 401 from `npm publish`. It does NOT
-          # catch a token of the wrong *type* — a classic "Publish" token
-          # passes `whoami` and then fails at publish with EOTP, which
-          # scripts/npm-publish.sh explains.
-          if ! whoami_out=$(npm whoami 2>&1); then
-            echo "::error::NPM_TOKEN is set but npm rejected it: ${whoami_out}. Regenerate the token and update the secret — see docs/releasing.md." >&2
-            exit 1
-          fi
-          echo "Authenticated to npm as ${whoami_out}."
-
       # --tag is not optional. `npm publish` with no --tag moves `latest`
       # even for a semver prerelease — npm does not special-case them — so
       # publishing 0.1.0-rc.1 without it would hand every `npm install`
@@ -341,10 +344,6 @@ jobs:
             ./scripts/npm-publish.sh "itaiji-normalize" "$DIST_TAG" \
               "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
           fi
-
-      - name: Remove npm auth
-        if: always()
-        run: rm -f "$HOME/.npmrc"
 
       - name: Extract changelog section
         if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
