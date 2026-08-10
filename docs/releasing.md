@@ -78,39 +78,31 @@ successful release. The `Release plan` step summary prints the dist-tag for that
 `## 0.1.0` as matching `## 0.1.0-rc.1 — …` as well, and because both headings match, the
 "stop at the next heading" rule never fires — the extracted notes run to the end of the file.
 
-## Releasing 0.1.0: do the release candidate first
+## Release candidates, and what they do and do not protect
 
 `npm publish` is the only step of this pipeline a dry run cannot exercise, and it cannot be undone:
 npm keeps a published version forever, and unpublishing is limited to the first 72 hours with zero
-dependents. The provenance attestation and the GitHub Release are also tag-push-only. Attempting
-all three for the first time on the version that installs by default is the expensive way to find
-out something is wrong.
+dependents. The provenance attestation and the GitHub Release are also tag-push-only. That is the
+case for rehearsing with a candidate first.
 
-`package.json` is currently at `0.1.0-rc.1` for exactly this reason.
+**But a candidate does less than it looks like it does for a brand-new name.** The sibling project
+published `jp-address-romaji@0.1.0-rc.1` with `--tag next` on 2026-08-10 and found:
 
-1. Tag `v0.1.0-rc.1`. It publishes under `next`, so `npm install itaiji-normalize` is unaffected.
+- **The first version ever published to a name becomes `latest` regardless of `--tag`.** The
+  registry has to point `latest` somewhere, and on a new package there is nothing else to point at.
+  `latest` cannot be deleted, so the only repair is publishing the real version. A candidate
+  therefore does **not** keep `npm install <pkg>` clean on a first release — it only buys a
+  rehearsal of the publish path.
+- **A prerelease does not satisfy a caret range.** Any dependency or peer range written as
+  `^x.y.z` will refuse a `x.y.z-rc.N`, which can make the candidate uninstallable. Ranges that need
+  to admit prereleases must be written `^x.y.z-0`.
 
-   ```sh
-   git tag v0.1.0-rc.1 && git push origin v0.1.0-rc.1
-   ```
+`itaiji-normalize` therefore went straight to `0.1.0`: the token path had already been proven for
+real on the sibling project, and a candidate would have moved `latest` anyway while spending a
+version number.
 
-2. Read the run, then check the result from outside:
-   - the npm page shows a provenance section
-   - `npm view itaiji-normalize dist-tags` shows `next` and **no** `latest`
-   - the GitHub Release body is the rc section only, not the 0.1.0 section
-3. In a scratch directory, install from the registry and exercise it — the first time the
-   *published* artifact is run rather than a local tarball:
-
-   ```sh
-   mkdir /tmp/try && cd /tmp/try && npm init -y
-   npm install itaiji-normalize@next
-   node -e 'import("itaiji-normalize").then(m => console.log(m.reduce("﨑").unique))'   # 崎
-   ```
-
-4. Then bump `package.json` to `0.1.0`, replace `## 0.1.0 — unreleased` with the real date, commit,
-   and tag `v0.1.0`.
-
-The rc version is spent permanently, which is what rc versions are for.
+Cut a candidate when you want to rehearse a *changed* release path — not to protect a first
+release, because it cannot.
 
 ## Cutting a release
 

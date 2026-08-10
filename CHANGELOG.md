@@ -3,18 +3,7 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0-rc.1 — 2026-08-10
-
-Release candidate for 0.1.0, published under the `next` dist-tag
-(`npm install itaiji-normalize@next`). The contents are the 0.1.0 section
-below; nothing is added or removed.
-
-`npm publish` is the one step of the release that a dry run cannot exercise
-and that cannot be undone, and the provenance attestation and GitHub Release
-only happen on a real tag push. This candidate exercises all three on a
-version nobody installs by accident.
-
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-08-10
 
 First release.
 
