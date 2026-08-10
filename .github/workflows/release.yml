@@ -168,8 +168,17 @@ jobs:
       # `npm publish <tarball>` runs no lifecycle scripts, so prepublishOnly
       # never fires on the release path — the build above is what puts dist/
       # in the tarball, not that hook.
+      #
+      # `mkdir -p` is load-bearing: `npm pack --pack-destination` does not
+      # create the directory and fails with ENOENT if it is missing. (pnpm's
+      # pack does create it, which is why the sibling project's workflow gets
+      # away without this.) ci.yml already carries the same note on its own
+      # pack step; this workflow was written without it and the first dry run
+      # died here.
       - name: Pack the tarball
-        run: npm pack --pack-destination "$RUNNER_TEMP/tarballs"
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarballs"
+          npm pack --pack-destination "$RUNNER_TEMP/tarballs"
 
       - name: Summarize tarball contents
         shell: bash
