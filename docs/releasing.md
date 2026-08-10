@@ -14,24 +14,32 @@ explicit message naming the secret rather than letting a later `npm publish` ret
 gh secret set NPM_TOKEN --repo tomatomerde/itaiji-normalize
 ```
 
-Create the token at <https://www.npmjs.com/settings/~/tokens>. It must be a token type that can
-publish without an interactive one-time password — a **Granular Access Token** with write access,
-or the classic **Automation** type. Note that the granular token's package picker only lists
-packages that already exist, so the *first* publish of a new name needs a token scoped to
-**all packages**; it can be narrowed afterwards.
+Create the token at <https://www.npmjs.com/settings/~/tokens>. npm has merged classic and granular
+token creation into a single form; the fields that matter:
 
-**Getting the token type wrong is not visible until the publish itself.** A classic **`Publish`**
-token is still subject to the account's 2FA, so npm rejects it from CI with:
+| Field | Value | Why |
+| --- | --- | --- |
+| **Bypass two-factor authentication (2FA)** | **ticked** | Without it npm demands a one-time password on publish, which CI cannot supply |
+| Packages and scopes → Permissions | **Read and write** | Defaults to read-only |
+| Select packages | **All packages** | An unpublished name does not appear in the per-package picker, so the first publish of a new name needs account-wide scope. Narrow it afterwards |
+| IP ranges | **leave empty** | GitHub-hosted runners have no stable egress IP |
+| Organizations → Permissions | No access | Not needed |
+
+**The 2FA checkbox is the one that bites, and it is invisible until the publish itself.** A token
+created without it is rejected from CI with:
 
 ```text
 npm error code EOTP
 npm error This operation requires a one-time password from your authenticator.
 ```
 
-This is exactly what happened on the sibling project's first real tag push (2026-08-10). No dry run
-can catch it, because dry runs never reach `npm publish` — which is the strongest argument for the
-release-candidate procedure below. `scripts/npm-publish.sh` recognises `EOTP` and names the token
-types that work.
+This happened twice on the sibling project's `v0.1.0-rc.1` (2026-08-10) — nothing was published
+either time, but each attempt cost a full pipeline run first. **Regenerating an existing token does
+not change this setting**; a new token has to be created with the box ticked.
+`scripts/npm-publish.sh` recognises `EOTP` and names the checkbox.
+
+No dry run can validate the token, because dry runs never reach `npm publish` — which is the
+strongest argument for the release-candidate procedure below.
 
 Nothing else needs setting up. The workflow's own `permissions:` block grants `contents: write`
 for the GitHub Release and `id-token: write` for provenance.
