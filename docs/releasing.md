@@ -26,18 +26,44 @@ Registered on npmjs.com under *Settings → Trusted Publisher* (2026-08-10):
 Three things the workflow must keep, or authentication breaks:
 
 - **`id-token: write`** in `permissions`. Without it there is no OIDC token to exchange.
-- **npm >= 11.5.1.** Node 22 ships npm 10.9.x, which does not support trusted publishing at all.
-  The `Ensure npm supports trusted publishing` step upgrades npm and asserts the version, so this
-  fails early and legibly instead of as an authentication error after the whole pipeline has run.
-  A dry run exercises that step — the only part of the OIDC path a dry run can reach.
+- **npm >= 11.5.1.** The runner's bundled npm does not meet this, so the
+  `Ensure npm supports trusted publishing` step upgrades npm and asserts the version. It fails
+  early and legibly instead of as an authentication error after the whole pipeline has run.
 - **The workflow filename must stay `release.yml`.** The trusted publisher is registered against
   that exact name; renaming the file silently invalidates it.
 
-**Not yet verified: no release has gone out through OIDC.** `0.1.0` was published with a token on
-2026-08-10 and this switch came afterwards. Nothing short of a real publish can test it — dry runs
-never reach `npm publish`. **Keep the `NPM_TOKEN` secret until an OIDC release succeeds**; it is
-unused now, but it is the rollback if the exchange fails. Delete it from the repository secrets and
-from npmjs.com once a release has gone out without it.
+### The npm version moves during the run
+
+That guard step is the only part of the OIDC path a dry run can reach, and the dry run of
+2026-08-10 (run `31403006092`, on the merge commit that introduced this) measured:
+
+| Point in the run | npm |
+| --- | --- |
+| after the first `setup-node` (Node 22's bundled npm) | **10.9.8** — below the requirement |
+| after the guard's `npm install -g npm@latest` | 12.0.2 |
+| during the Node 18 smoke test | 10.8.2 |
+| at the publish step, after `setup-node` returns to Node 22 | **12.0.2** |
+
+Two things worth keeping from that table. The bundled npm really is too old — without the guard
+this pipeline would reach `npm publish` and fail with an authentication error that says nothing
+about versions. And **the version dips and recovers**: re-running `setup-node` for the Node 18 leg
+swaps the whole toolchain, and the upgrade only survives because the final `setup-node` selects the
+same Node 22 from the tool cache that the guard upgraded in place. Point the last `setup-node` at a
+different version and npm silently reverts to the bundled one. If the publish leg's Node version
+ever changes, re-read the version at that point rather than assuming the guard still holds.
+
+### Not yet verified: no release has gone out through OIDC
+
+`0.1.0` was published with a token on 2026-08-10 and this switch came afterwards. Dry runs never
+reach `npm publish`, so nothing short of a real publish can test the token exchange.
+
+**Re-pushing `v0.1.0` will not test it either.** The publish step skips a version that is already on
+the registry — the dry run above printed `itaiji-normalize@0.1.0 is already on npm; skipping.` The
+first real exercise of OIDC is therefore **the next version bump**.
+
+**Keep the `NPM_TOKEN` secret until then.** It is unused now, but it is the rollback if the exchange
+fails. Delete it from the repository secrets and from npmjs.com once a release has gone out
+without it.
 
 ## One-time setup: the npm token (superseded, kept as rollback)
 
@@ -84,10 +110,13 @@ for the GitHub Release and `id-token: write` for provenance.
 
 ## Provenance
 
-Every publish carries an npm provenance attestation, published as
-`npm publish --provenance --access public`. **The `--access public` is not optional.** For a name
-the registry does not know yet, npm refuses to mint an attestation unless access is stated
-explicitly:
+Every publish carries an npm provenance attestation. Under trusted publishing npm mints it
+automatically, which is why the publish command carries no `--provenance` flag — the flag belongs to
+the token path and is gone.
+
+**`--access public` stays.** It is not there for provenance any more, but removing it would put back
+a failure this repository has already paid for once. For a name the registry does not know yet, npm
+refuses to mint an attestation unless access is stated explicitly:
 
 ```text
 npm error code EUSAGE
@@ -108,10 +137,6 @@ both easy to break without noticing:
   repository the workflow runs in and **fails the publish** if they disagree — it does not quietly
   fall back to publishing without an attestation.
 - **The repository must stay public.** npm provenance requires a public source repository.
-
-Authentication is still `NPM_TOKEN`, not npm's tokenless "trusted publishing" OIDC flow — that
-needs a trusted publisher configured on npm per package, which cannot be done before the package
-exists. Worth revisiting once 0.1.0 is on the registry; provenance does not depend on it.
 
 ## Tag scheme and the dist-tag
 
