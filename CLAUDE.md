@@ -31,7 +31,7 @@ MJ縮退マップを用いた異体字の縮退変換・等価クラス判定・
 
 ---
 
-<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ e28d2ef）。マーカーの内側を手で編集しないこと -->
+<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ 9040cf3）。マーカーの内側を手で編集しないこと -->
 <!-- BEGIN dev-standards common -->
 # ここから下は共通（全プロジェクト同一・dev-standards から自動同期）
 
@@ -232,6 +232,42 @@ npm パッケージを公開する場合:
 - **同梱データを持つパッケージは、そのデータを生成する経路を実物で通してから公開する。**
   データが中身のすべてなので、生成が一度も検証されていないまま公開するのは、
   確かめていないものを恒久的なレジストリに置くことになる
+- **CI から publish するトークンは、npm の「Bypass two-factor authentication (2FA)」に
+  チェックを入れて作る。** 入っていないと publish のたびに OTP を要求され（`EOTP`）、
+  CI には渡す手段がない。**既存トークンの Regenerate では設定は変わらない**ので、
+  作り直しになる。npm は classic と granular のトークン作成フォームを統合済みで、
+  「Automation タイプを選ぶ」という古い手順はもう存在しない
+- **rc（prerelease）は、新規の名前に対しては何も守らない。** レジストリは
+  **初回公開時に `latest` を必ず作る**——`--tag next` を付けていても、他に向ける先が
+  無いので `latest` もその版を指す。`latest` タグは削除できず、直す手段は本番版を
+  publish することだけ。rc に意味があるのは「publish 経路のリハーサル」としてであって、
+  `npm install` を守る用途ではない。**そこを期待して rc を挟むなら、挟まずに本番版を
+  出したほうがいい**（バージョンを1つ節約できる）
+- **`^x.y.z` は `x.y.z-rc.N` を満たさない。** semver の仕様で、prerelease は
+  同じ [major,minor,patch] に prerelease を持つ範囲としか一致しない。依存や peer に
+  caret を書いていると、**rc のパッケージ群が同時にインストールできず、rc を出した
+  意味そのものが消える**。prerelease を受け入れる範囲は `^x.y.z-0` と書く
+- **provenance を付けるなら `--access public` を明示する。** レジストリがまだ知らない
+  名前に対して、npm は access が明示されていないと attestation を作らず `EUSAGE`
+  （`Can't generate provenance for new or private package`）で落ちる。スコープ無しの
+  パッケージは既定で public なのでフラグは冗長に見えるが、**「既定で public」は
+  「明示的に public」ではない**。初回の本番タグ push が実際にこれで落ちた。
+  `package.json` の `publishConfig.access` も併せて置く（手動 publish を同じ挙動にするため）
+- **npm の trusted publishing（トークンレス OIDC）は、パッケージが存在しないと
+  設定できない。** 初回だけはトークンで publish するしかなく、移行はそのあと。
+  期限を切ったトークンを作り、公開後に移行して消すのが現実的な順序
+- **trusted publishing は npm 11.5.1 以上を要求する。GitHub ランナーの同梱 npm では
+  足りない。** Node 22 ランナーの実測は **10.9.8**。何もしなければ publish の直前で
+  認証エラーになり、**そのメッセージはバージョンについて何も言わない**。
+  `npm install -g npm@latest` してから版を突き合わせて落とすステップを publish より前に置く。
+  それは **dry run で実行される唯一の OIDC 関連部分**でもある。さらに、あとから
+  `setup-node` を走らせ直すと npm が戻りうる（tool cache 上の同じ Node を選び直す限りは
+  上書きが残るが、別バージョンを選べば同梱版に戻る）。**publish 直前の npm の版を
+  ログで確認する**——別ランタイムでスモークテストする構成では、途中で一度下がる
+- **publish 経路を変えても、次の新しいバージョンが出るまで検証できない。**
+  「レジストリに既にあるならスキップ」する作りのワークフローでは、同じタグを押し直しても
+  publish は実行されない。dry run も `npm publish` に到達しない。**切り替えの検証は
+  次のリリースまで持ち越しになるので、それまで戻り先（旧トークンなど）を消さない**
 
 HTTP API を公開する場合:
 
