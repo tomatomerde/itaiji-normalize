@@ -5,7 +5,45 @@ How `itaiji-normalize` gets to npm. The pipeline is
 of it that a reader would otherwise have to reverse-engineer, and the two decisions that are easy
 to get wrong.
 
-## One-time setup (human, not automatable)
+## Trusted publishing (how the workflow authenticates)
+
+**The workflow carries no npm token.** It publishes through npm *trusted publishing*: GitHub
+Actions mints a short-lived OIDC token, npm verifies it against a trusted publisher registered on
+the package, and the publish is authorised without any long-lived secret. Provenance attestations
+are generated automatically on this path, which is why there is no `--provenance` flag.
+
+Registered on npmjs.com under *Settings → Trusted Publisher* (2026-08-10):
+
+| Field | Value |
+| --- | --- |
+| Publisher | GitHub Actions |
+| Organization or user | `tomatomerde` |
+| Repository | `itaiji-normalize` |
+| Workflow filename | `release.yml` |
+| Environment name | **empty** — the job declares no GitHub Environment, and a mismatch here rejects the publish |
+| Allowed actions | `npm publish` and `npm stage publish` |
+
+Three things the workflow must keep, or authentication breaks:
+
+- **`id-token: write`** in `permissions`. Without it there is no OIDC token to exchange.
+- **npm >= 11.5.1.** Node 22 ships npm 10.9.x, which does not support trusted publishing at all.
+  The `Ensure npm supports trusted publishing` step upgrades npm and asserts the version, so this
+  fails early and legibly instead of as an authentication error after the whole pipeline has run.
+  A dry run exercises that step — the only part of the OIDC path a dry run can reach.
+- **The workflow filename must stay `release.yml`.** The trusted publisher is registered against
+  that exact name; renaming the file silently invalidates it.
+
+**Not yet verified: no release has gone out through OIDC.** `0.1.0` was published with a token on
+2026-08-10 and this switch came afterwards. Nothing short of a real publish can test it — dry runs
+never reach `npm publish`. **Keep the `NPM_TOKEN` secret until an OIDC release succeeds**; it is
+unused now, but it is the rollback if the exchange fails. Delete it from the repository secrets and
+from npmjs.com once a release has gone out without it.
+
+## One-time setup: the npm token (superseded, kept as rollback)
+
+Everything below describes the token path this workflow no longer uses. It is kept because the
+token is still the fallback until trusted publishing has been proven by a real release, and because
+the failure modes it documents are worth keeping.
 
 **`NPM_TOKEN`** — an Actions secret. Nothing publishes without it, and the workflow fails with an
 explicit message naming the secret rather than letting a later `npm publish` return an opaque 401.
