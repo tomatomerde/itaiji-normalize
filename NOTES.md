@@ -362,8 +362,13 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
   → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
   戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
   リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
-- **ブランチ保護が未設定**(2026-08-10 に API で `protected: false` を確認)
-- **GitHub のリポジトリ説明と topics が未設定。** 検索経路が README だけになる
+ブランチ保護と GitHub の description / topics は 2026-08-10 に設定済み。保護の内容は
+`main` への直 push 禁止、required checks は `test (20)` / `test (22)` / `browser` /
+`workers` / `smoke-node18`、`strict: false`、`enforce_admins: true`、承認0件。
+**`integrity` は required に入れていない**——`check-common-integrity.yml` は
+`paths:` フィルタ付きで `CLAUDE.md` を触らない PR では起動せず、required にすると
+そういう PR が「Expected — waiting for status」で永久にマージできなくなるため。
+保護を張り直すときはここを再現すること。
 
 ## ラウンド7(PR #5 のレビュー)で残った判断
 
