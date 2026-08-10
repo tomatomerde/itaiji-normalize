@@ -309,6 +309,18 @@ jobs:
           fi
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
 
+          # Confirm the token authenticates at all before the publish step.
+          # This catches a revoked, expired or mistyped token, which would
+          # otherwise surface as a bare 401 from `npm publish`. It does NOT
+          # catch a token of the wrong *type* — a classic "Publish" token
+          # passes `whoami` and then fails at publish with EOTP, which
+          # scripts/npm-publish.sh explains.
+          if ! whoami_out=$(npm whoami 2>&1); then
+            echo "::error::NPM_TOKEN is set but npm rejected it: ${whoami_out}. Regenerate the token and update the secret — see docs/releasing.md." >&2
+            exit 1
+          fi
+          echo "Authenticated to npm as ${whoami_out}."
+
       # --tag is not optional. `npm publish` with no --tag moves `latest`
       # even for a semver prerelease — npm does not special-case them — so
       # publishing 0.1.0-rc.1 without it would hand every `npm install`
@@ -326,7 +338,8 @@ jobs:
           elif [ "$DRY_RUN" = "true" ]; then
             echo "[dry run] would publish itaiji-normalize@$version --tag $DIST_TAG"
           else
-            npm publish --provenance --tag "$DIST_TAG" "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
+            ./scripts/npm-publish.sh "itaiji-normalize" "$DIST_TAG" \
+              "$RUNNER_TEMP/tarballs/itaiji-normalize-$version.tgz"
           fi
 
       - name: Remove npm auth
