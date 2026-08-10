@@ -51,8 +51,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -286,7 +286,7 @@ jobs:
       # systems. The test suite cannot run on Node 18 — the dev toolchain
       # needs 20.12+ — so without this the "Node 18+" promise ships
       # unverified. Mirrors the smoke-node18 job in ci.yml.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 18
       - name: Smoke-test the packed tarball on Node 18 (CJS and ESM)
@@ -320,7 +320,7 @@ jobs:
           node smoke.cjs
           node smoke.mjs
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
