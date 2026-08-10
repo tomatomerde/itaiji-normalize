@@ -31,7 +31,7 @@ MJ縮退マップを用いた異体字の縮退変換・等価クラス判定・
 
 ---
 
-<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ 4b63fbb）。マーカーの内側を手で編集しないこと -->
+<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ aabc499）。マーカーの内側を手で編集しないこと -->
 <!-- BEGIN dev-standards common -->
 # ここから下は共通（全プロジェクト同一・dev-standards から自動同期）
 
@@ -191,21 +191,6 @@ dev-standards 側を直す——各案件には同期 PR が自動で届く。
   コードは1バイトも変わっていない」という整理の検証根拠を失う。引き継ぎ文書の冒頭に
   「履歴中の `#N` は旧リポジトリのもの。番号ではなく `git log` の件名で辿ること」と
   書いておく。同じ理由で、旧リポジトリの SHA を引いている記述も解決しなくなる
-- ブランチ保護を有効にする前に、生成物をコミットするワークフローがないか確認する。
-  required status checks と enforce_admins は github-actions bot の直 push も拒否し、
-  プランによっては特定アクターの除外ができない。衝突する場合は、push 失敗を warning と
-  artifact への案内に degrade させるなど、保護と両立する経路を先に用意しておく
-- **required status checks には「すべての PR で必ず起動するチェック」だけを入れる。**
-  `paths:` フィルタ付きのワークフローを required にすると、そのパスに触らない PR で
-  ジョブがそもそも作られず、**「Expected — waiting for status」のまま永久にマージ
-  できなくなる**。落ちるのではなく永遠に始まらないので、原因が見えにくい。
-  チェック名は job id ではなく**実物の check-run 名**で書く（matrix があれば
-  `test (20)`、`name:` を付けていれば展開後の文字列）。推測で書くと同じ症状になる
-- **`strict`（マージ前に base に追いついていること）は既定で有効にしない。** 有効だと、
-  PR を1本マージするたびに同じリポジトリの他の open PR 全部が更新待ちになる。1人で
-  回している間はほぼ手間だけが増える。CI が main への push でも走る構成なら、
-  取りこぼしはそちらで赤くなる
-
 **README は「読み物」として一度通しで読む。** 要素の有無を機械的に確認するだけでは足りない。
 初めて来た第三者になったつもりで読み、次を見る:
 
@@ -229,6 +214,36 @@ dev-standards 側を直す——各案件には同期 PR が自動で届く。
   「正しいこと」ではない、という区別まで書く
 - **文書と CI が矛盾していないか。** 「こう直せ」と書いてある手順を実行すると CI が落ちる、
   という状態は不具合。同じファイルの中で起きていることがある
+
+ブランチ保護を入れる場合（**公開・非公開に関係なく効く**。無料プランでは public でないと
+使えないという制約はあるが、下の内容自体は可視性と無関係）:
+
+- **有効にする前に、生成物をコミットするワークフローがないか確認する。**
+  required status checks と enforce_admins は github-actions bot の直 push も拒否し、
+  プランによっては特定アクターの除外ができない。衝突する場合は、push 失敗を warning と
+  artifact への案内に degrade させるなど、保護と両立する経路を先に用意しておく
+- **`GITHUB_TOKEN` で PR を作るワークフローも確認する。** 「Allow GitHub Actions to
+  create and approve pull requests」は**既定でオフ**で、オフだと `gh pr create` は
+  `GitHub Actions is not permitted to create or approve pull requests` で落ちる。
+  保護を入れると「main へ直 push」という逃げ道が同時に消えるので、**このオフと保護が
+  組み合わさって初めて詰む**。確認は
+  `gh api repos/O/R/actions/permissions/workflow --jq .can_approve_pull_request_reviews`。
+  データ更新のような定期ジョブでは、push まで済んでいるなら PR 作成の失敗で全体を
+  落とさず、PR を開くリンク付きの warning に degrade するほうがよい——**成功した更新を
+  失敗として報告しない**ため
+- **required status checks には「すべての PR で必ず起動するチェック」だけを入れる。**
+  `paths:` フィルタ付きのワークフローを required にすると、そのパスに触らない PR で
+  ジョブがそもそも作られず、**「Expected — waiting for status」のまま永久にマージ
+  できなくなる**。落ちるのではなく永遠に始まらないので、原因が見えにくい。
+  チェック名は job id ではなく**実物の check-run 名**で書く（matrix があれば
+  `test (20)`、`name:` を付けていれば展開後の文字列）。推測で書くと同じ症状になる
+- **`strict`（マージ前に base に追いついていること）は既定で有効にしない。** 有効だと、
+  PR を1本マージするたびに同じリポジトリの他の open PR 全部が更新待ちになる。1人で
+  回している間はほぼ手間だけが増える。CI が main への push でも走る構成なら、
+  取りこぼしはそちらで赤くなる
+- **`required_approving_review_count` は1人運用なら 0 にする。** 自分の PR は自分で
+  承認できないので、1 にすると全 PR が恒久的にマージ不能になる。0 でも「PR を経由する
+  こと」自体は強制される
 
 npm パッケージを公開する場合:
 
