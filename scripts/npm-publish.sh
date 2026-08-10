@@ -36,13 +36,15 @@ if [ "$status" -eq 0 ]; then
   exit 0
 fi
 
-# EOTP: npm asked for a one-time password, which means the token is a type
-# that 2FA still applies to — a classic "Publish" token. Tokens that work
-# unattended are a Granular Access Token with write access to packages, or a
-# classic token of type "Automation". This is not something a dry run can
-# ever surface, because dry runs never reach `npm publish`.
+# EOTP: npm asked for a one-time password, which means 2FA still applies to
+# this token. On npm's current token page — where classic and granular token
+# creation have been merged into one form — the deciding field is the
+# "Bypass two-factor authentication (2FA)" checkbox under General. A token
+# created without it ticked is rejected from CI every time, no matter what
+# its package permissions say. This is not something a dry run can ever
+# surface, because dry runs never reach `npm publish`.
 if grep -q 'EOTP' "$log"; then
-  echo "::error::npm rejected the publish of ${package} with EOTP (one-time password required). NPM_TOKEN is a token type that 2FA applies to — most likely a classic \"Publish\" token. Replace it with a Granular Access Token (Packages and scopes: Read and write) or a classic \"Automation\" token, update the NPM_TOKEN secret, and re-run this workflow. See docs/releasing.md 'One-time setup'." >&2
+  echo "::error::npm rejected the publish of ${package} with EOTP (one-time password required). NPM_TOKEN was created without the \"Bypass two-factor authentication (2FA)\" checkbox ticked, so npm demands an OTP that CI cannot supply. Create a new token at https://www.npmjs.com/settings/~/tokens with that box ticked and Packages and scopes: Read and write, update the NPM_TOKEN secret, and re-run. Regenerating the existing token does NOT change this setting. See docs/releasing.md 'One-time setup'." >&2
 elif grep -qE 'E403|403 Forbidden' "$log"; then
   echo "::error::npm returned 403 publishing ${package}. Either the token lacks write access to this package, or the name is taken by someone else. Note that a Granular Access Token scoped to specific packages cannot publish a name that does not exist yet — the first publish of a new name needs a token scoped to all packages. See docs/releasing.md 'One-time setup'." >&2
 fi
