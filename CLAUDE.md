@@ -31,7 +31,7 @@ MJ縮退マップを用いた異体字の縮退変換・等価クラス判定・
 
 ---
 
-<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ 9040cf3）。マーカーの内側を手で編集しないこと -->
+<!-- 以下は dev-standards の common/CLAUDE.common.md から自動同期（@ 4b63fbb）。マーカーの内側を手で編集しないこと -->
 <!-- BEGIN dev-standards common -->
 # ここから下は共通（全プロジェクト同一・dev-standards から自動同期）
 
@@ -195,6 +195,16 @@ dev-standards 側を直す——各案件には同期 PR が自動で届く。
   required status checks と enforce_admins は github-actions bot の直 push も拒否し、
   プランによっては特定アクターの除外ができない。衝突する場合は、push 失敗を warning と
   artifact への案内に degrade させるなど、保護と両立する経路を先に用意しておく
+- **required status checks には「すべての PR で必ず起動するチェック」だけを入れる。**
+  `paths:` フィルタ付きのワークフローを required にすると、そのパスに触らない PR で
+  ジョブがそもそも作られず、**「Expected — waiting for status」のまま永久にマージ
+  できなくなる**。落ちるのではなく永遠に始まらないので、原因が見えにくい。
+  チェック名は job id ではなく**実物の check-run 名**で書く（matrix があれば
+  `test (20)`、`name:` を付けていれば展開後の文字列）。推測で書くと同じ症状になる
+- **`strict`（マージ前に base に追いついていること）は既定で有効にしない。** 有効だと、
+  PR を1本マージするたびに同じリポジトリの他の open PR 全部が更新待ちになる。1人で
+  回している間はほぼ手間だけが増える。CI が main への push でも走る構成なら、
+  取りこぼしはそちらで赤くなる
 
 **README は「読み物」として一度通しで読む。** 要素の有無を機械的に確認するだけでは足りない。
 初めて来た第三者になったつもりで読み、次を見る:
