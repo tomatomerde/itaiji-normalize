@@ -354,13 +354,17 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 ### 残っているもの
 
-- **npm への実公開**(`npm publish --dry-run` までは実施済み。レビューを
-  一巡させてから判断する)。`itaiji-normalize` の名前は 2026-08-10 時点で
-  レジストリ上は未登録(`https://registry.npmjs.org/itaiji-normalize` が 404)
-- **リリース用ワークフローが無い。** ワークフローは `ci.yml` と
-  `check-common-integrity.yml` の2本だけで、公開は手作業になる。
-  `jp-address-romaji` の `release.yml`(tag 駆動 + dry run 用の `workflow_dispatch`)が
-  同じ構成の先行例
+- **`NPM_TOKEN` が未設定。** これだけが npm 公開を止めている。
+  `gh secret set NPM_TOKEN --repo tomatomerde/itaiji-normalize`。
+  対話的なワンタイムパスワードを要求しない種類が要る(Granular Access Token の
+  write、または classic の Automation)。**未公開の名前は granular のパッケージ
+  選択に出てこない**ので、初回だけは全パッケージ対象のトークンが必要
+- **`0.1.0` を実際に出すか、いつ出すか。** 経路は `.github/workflows/release.yml`
+  にあり、2026-08-10 に dry run を最後まで通した。`package.json` は `0.1.0-rc.1` で、
+  タグを push すれば `next` に出る。本番の `0.1.0` に進めるかは、rc をレジストリから
+  入れて動かしてからの判断。手順は [`docs/releasing.md`](docs/releasing.md)。
+  名前は 2026-08-10 時点でレジストリ上は未登録
+  (`https://registry.npmjs.org/itaiji-normalize` が 404)
 - **ブランチ保護が未設定**(2026-08-10 に API で `protected: false` を確認)
 
 ## ラウンド7(PR #5 のレビュー)で残った判断
