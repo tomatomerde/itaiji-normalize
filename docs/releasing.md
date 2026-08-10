@@ -46,7 +46,23 @@ for the GitHub Release and `id-token: write` for provenance.
 
 ## Provenance
 
-Every publish carries an npm provenance attestation (`npm publish --provenance`), so the tarball
+Every publish carries an npm provenance attestation, published as
+`npm publish --provenance --access public`. **The `--access public` is not optional.** For a name
+the registry does not know yet, npm refuses to mint an attestation unless access is stated
+explicitly:
+
+```text
+npm error code EUSAGE
+npm error Can't generate provenance for new or private package, you must set `access` to public.
+```
+
+An unscoped package is public by default, so the flag looks redundant, and npm still rejects it:
+"default" is not "explicitly public". **This failed the first real `v0.1.0` tag push on
+2026-08-10** — the sibling project survived only because its `package.json`s happened to carry
+`publishConfig.access`. Both are set here now: the flag in `scripts/npm-publish.sh`, and
+`publishConfig.access` in `package.json` so a manual publish behaves the same.
+
+The attestation means the tarball
 on npm can be traced to the commit and workflow run that produced it. Two things it depends on,
 both easy to break without noticing:
 

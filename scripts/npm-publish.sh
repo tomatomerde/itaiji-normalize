@@ -11,6 +11,20 @@
 # comment asking that the two steps be kept in agreement — this makes that
 # structural instead of aspirational.
 #
+# --access public is not optional when --provenance is on. For a name the
+# registry does not know yet, npm refuses to mint an attestation unless
+# access is stated explicitly:
+#
+#   npm error code EUSAGE
+#   npm error Can't generate provenance for new or private package, you must
+#   set `access` to public.
+#
+# An unscoped package is public by default, so the flag looks redundant —
+# and npm still rejects it, because "default" is not "explicitly public".
+# A sibling package survived the first release only because its
+# package.json happened to carry publishConfig.access; two others without
+# it failed on their first real tag push (2026-08-10).
+#
 # The exit code of `npm publish` is always preserved. The diagnostics only add
 # an explanation; they never turn a failure into a success.
 
@@ -26,7 +40,7 @@ log="${RUNNER_TEMP:-/tmp}/npm-publish-${package}.log"
 # would put a second command's exit status in play under `pipefail`, and the
 # whole point is to report npm's own status faithfully.
 set +e
-npm publish --provenance --tag "$dist_tag" "$tarball" > "$log" 2>&1
+npm publish --provenance --access public --tag "$dist_tag" "$tarball" > "$log" 2>&1
 status=$?
 set -e
 
@@ -45,6 +59,8 @@ fi
 # surface, because dry runs never reach `npm publish`.
 if grep -q 'EOTP' "$log"; then
   echo "::error::npm rejected the publish of ${package} with EOTP (one-time password required). NPM_TOKEN was created without the \"Bypass two-factor authentication (2FA)\" checkbox ticked, so npm demands an OTP that CI cannot supply. Create a new token at https://www.npmjs.com/settings/~/tokens with that box ticked and Packages and scopes: Read and write, update the NPM_TOKEN secret, and re-run. Regenerating the existing token does NOT change this setting. See docs/releasing.md 'One-time setup'." >&2
+elif grep -q 'EUSAGE' "$log" && grep -q 'provenance' "$log"; then
+  echo "::error::npm refused to publish ${package} because provenance requires an explicit public access setting. The publish command already passes --access public, so if you are seeing this, that flag was removed or overridden — check scripts/npm-publish.sh and package.json's publishConfig. See docs/releasing.md 'Provenance'." >&2
 elif grep -qE 'E403|403 Forbidden' "$log"; then
   echo "::error::npm returned 403 publishing ${package}. Either the token lacks write access to this package, or the name is taken by someone else. Note that a Granular Access Token scoped to specific packages cannot publish a name that does not exist yet — the first publish of a new name needs a token scoped to all packages. See docs/releasing.md 'One-time setup'." >&2
 fi
