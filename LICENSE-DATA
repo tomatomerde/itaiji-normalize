@@ -1,6 +1,10 @@
 Data license: CC BY-SA 2.1 Japan
 =================================
 
+This project is licensed in two parts. The source code is MIT — see LICENSE.
+The bundled data described below, including the generated table compiled into
+the published bundle, is CC BY-SA 2.1 Japan and is NOT covered by LICENSE.
+
 This package bundles data derived from the MJ Shrink Map (MJ縮退マップ),
 published by the Character Information Technology Promotion Council
 (文字情報技術促進協議会) / Information-technology Promotion Agency, Japan (IPA).

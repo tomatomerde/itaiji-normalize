@@ -52,6 +52,15 @@ is that its answers are traceable to a public source.
   content, check that the attribution and licence notices still hold — `LICENSE-DATA` and the README
   both carry them.
 
+- **Keep `LICENSE` as the verbatim MIT text, with nothing appended.** GitHub detects a repository's
+  licence by matching that file against known licence texts, and it is an exact-ish match: a note
+  added at the end is enough to make it give up. This repository used to carry a short paragraph
+  there pointing at `LICENSE-DATA`, and the result was that GitHub reported the licence as
+  `NOASSERTION` — no licence chip in the sidebar, nothing in the API — which to a cautious reader
+  means "all rights reserved" on an MIT project. The two-part licensing is explained in
+  `LICENSE-DATA`, in the README's *Data provenance and license* section, and in the two README
+  badges; that is where it belongs. Adding it back to `LICENSE` would be a regression.
+
 ## Out of scope
 
 Proposals for these have been considered and declined; a PR implementing one will be closed rather
