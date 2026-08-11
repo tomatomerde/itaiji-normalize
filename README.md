@@ -1,8 +1,11 @@
 # itaiji-normalize
 
+[![npm](https://img.shields.io/npm/v/itaiji-normalize.svg)](https://www.npmjs.com/package/itaiji-normalize)
 [![CI](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Data: CC BY-SA 2.1 JP](https://img.shields.io/badge/data-CC%20BY--SA%202.1%20JP-lightgrey.svg)](./LICENSE-DATA)
+[![Node.js 18+ · browsers · Workers](https://img.shields.io/badge/runs%20on-Node%2018%2B%20%C2%B7%20browsers%20%C2%B7%20Workers-brightgreen.svg)](#install)
+[![module: ESM + CJS](https://img.shields.io/badge/module-ESM%20%2B%20CJS-blue.svg)](#install)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
 
 **English** | [日本語](./README.ja.md)
@@ -11,15 +14,11 @@ Grounded kanji-variant (itaiji, 異体字) normalization, equivalence checking,
 and matching-key generation for Japanese text, backed by IPA's **MJ Shrink
 Map** (MJ縮退マップ) — a public dataset, not a hand-curated dictionary.
 
-Dependency-free. All data ships inside the package; nothing is fetched over
-the network at build or run time.
-
-Every supported runtime is exercised in CI, against the built artifact rather
-than the source: **Node.js 18+** (by installing the published tarball on Node
-18 and calling it through both `require()` and `import()`, plus the full suite
-on Node 20 and 22), **browsers** (the ESM bundle loaded as a module script in
-headless Chromium), and **Cloudflare Workers** (the bundle running inside
-workerd, the runtime Workers actually uses).
+Dependency-free, shipped as both ESM and CommonJS, and runs unchanged on
+**Node.js 18+, in browsers, and on Cloudflare Workers**. All data ships inside
+the package; nothing is fetched over the network at build or run time. (Each
+of those runtimes is exercised in CI against the built artifact — the details
+are under [Support and scope](#support-and-scope).)
 
 ## Why this exists
 
@@ -53,6 +52,19 @@ distinction matters for you.
 ```sh
 npm install itaiji-normalize
 ```
+
+Two conditions are worth knowing before you commit to it, because both fail
+*after* the install rather than during it — full details under
+[Known limitations](#known-limitations):
+
+- **The bundled tables are large**: ~270–290 KB gzipped even for a single
+  entry point, **~560 KB for the whole API**. On Cloudflare Workers that is
+  over half the 1 MB budget. Import only what you use — the tables carry
+  `/* @__PURE__ */` annotations so bundlers can drop the rest.
+- **Full ICU is required** for the default `unicodeNormalize: "NFKC"`.
+  Official Node builds, Chromium and workerd all have it; a Node built with
+  `--with-intl=small-icu` does not, and will produce different keys unless you
+  pass `unicodeNormalize: false`.
 
 ## At a glance
 
@@ -114,6 +126,60 @@ responsibly.
   maintained on a best-effort basis. Issues and pull requests are welcome, but
   response times are not guaranteed. The software is provided as is, without
   warranty of any kind, as stated in the MIT licence.
+- **Every runtime claimed above is exercised in CI against the built
+  artifact**, not the source: **Node.js 18+** (the published tarball is
+  installed on Node 18 and called through both `require()` and `import()`,
+  plus the full suite on Node 20 and 22), **browsers** (the ESM bundle loaded
+  as a module script in headless Chromium), and **Cloudflare Workers** (the
+  bundle running inside workerd, the runtime Workers actually uses). What CI
+  does *not* cover is listed under [Known limitations](#known-limitations).
+
+## Known limitations
+
+Measured, not estimated. Please weigh these before adopting.
+
+**Bundle size.** The tables are large. Approximate figures, minified and
+gzipped, measured with `esbuild --bundle --minify --format=esm` (expect a few
+KB either way depending on your bundler and its version):
+
+| what you import | gzip |
+| --- | --- |
+| `isVariant` only | ~290 KB |
+| `reduce` only | ~270 KB |
+| `toMatchingKey` | ~271 KB |
+| the whole API | ~562 KB |
+
+The generated tables carry `/* @__PURE__ */` annotations so bundlers can drop
+the ones you don't reach; without them every consumer paid for all of them.
+If you use the whole API you still pay all of it, which on Cloudflare Workers
+is over half the 1 MB gzipped budget. Re-encoding the tables more compactly
+is on the roadmap and not done yet.
+
+**`unicodeNormalize: "NFKC"` (the default) does more than fold kanji.** NFKC
+is a compatibility normalization, so it also rewrites things you may not
+expect: `㈱`→`(株)`, `№`→`No`, `①②③`→`123`, `㌢`→`センチ`, `ﬁ`→`fi`,
+`Ⅻ`→`XII`. That is usually what you want for name matching, but it means the
+key can be longer than the input. Pass `"NFC"` or `false` if you need the
+input's shape preserved.
+
+**Full ICU is required.** `String.prototype.normalize` needs full ICU data.
+Official Node.js builds have it, and so do Chromium and workerd — the CI
+browser and Workers jobs assert that NFKC actually folds, so a runtime
+missing ICU would fail there rather than silently produce different keys. A
+Node compiled with `--with-intl=small-icu` (or `none`) will not normalize
+correctly; pass `unicodeNormalize: false` if you must run on such a build.
+
+**Throughput.** Roughly 0.5–0.7 million `toMatchingKey` calls/second on short
+names (100,000 names in ~150–210 ms across the machines we measured on, Node
+22) — treat it as an order of magnitude, not a promise. There is no
+cross-call cache, on purpose: that would be hidden global state. If you are
+normalizing millions of rows and want more, memoize per character on your
+side.
+
+**What CI does not cover.** Runtimes other than Node 18/20/22, headless
+Chromium and workerd — notably Deno, Bun, and non-Chromium browsers. Nothing
+in the bundle is engine-specific, but that is reasoning, not evidence, so
+treat those as unverified.
 
 ## API reference
 
@@ -363,53 +429,6 @@ snapshot is a local script (`npm run build:tables`).
 In the published package the licensed data is not a separate file: it is
 compiled into `dist/index.js` and `dist/index.cjs`. `LICENSE-DATA` names
 those explicitly.
-
-## Known limitations
-
-Measured, not estimated. Please weigh these before adopting.
-
-**Bundle size.** The tables are large. Approximate figures, minified and
-gzipped, measured with `esbuild --bundle --minify --format=esm` (expect a few
-KB either way depending on your bundler and its version):
-
-| what you import | gzip |
-| --- | --- |
-| `isVariant` only | ~290 KB |
-| `reduce` only | ~270 KB |
-| `toMatchingKey` | ~271 KB |
-| the whole API | ~562 KB |
-
-The generated tables carry `/* @__PURE__ */` annotations so bundlers can drop
-the ones you don't reach; without them every consumer paid for all of them.
-If you use the whole API you still pay all of it, which on Cloudflare Workers
-is over half the 1 MB gzipped budget. Re-encoding the tables more compactly
-is on the roadmap and not done yet.
-
-**`unicodeNormalize: "NFKC"` (the default) does more than fold kanji.** NFKC
-is a compatibility normalization, so it also rewrites things you may not
-expect: `㈱`→`(株)`, `№`→`No`, `①②③`→`123`, `㌢`→`センチ`, `ﬁ`→`fi`,
-`Ⅻ`→`XII`. That is usually what you want for name matching, but it means the
-key can be longer than the input. Pass `"NFC"` or `false` if you need the
-input's shape preserved.
-
-**Full ICU is required.** `String.prototype.normalize` needs full ICU data.
-Official Node.js builds have it, and so do Chromium and workerd — the CI
-browser and Workers jobs assert that NFKC actually folds, so a runtime
-missing ICU would fail there rather than silently produce different keys. A
-Node compiled with `--with-intl=small-icu` (or `none`) will not normalize
-correctly; pass `unicodeNormalize: false` if you must run on such a build.
-
-**Throughput.** Roughly 0.5–0.7 million `toMatchingKey` calls/second on short
-names (100,000 names in ~150–210 ms across the machines we measured on, Node
-22) — treat it as an order of magnitude, not a promise. There is no
-cross-call cache, on purpose: that would be hidden global state. If you are
-normalizing millions of rows and want more, memoize per character on your
-side.
-
-**What CI does not cover.** Runtimes other than Node 18/20/22, headless
-Chromium and workerd — notably Deno, Bun, and non-Chromium browsers. Nothing
-in the bundle is engine-specific, but that is reasoning, not evidence, so
-treat those as unverified.
 
 ## Roadmap / not in v1
 
