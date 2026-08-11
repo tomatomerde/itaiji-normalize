@@ -3,6 +3,32 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `scripts/assert-npm-version.sh`, called twice in `release.yml`: after the
+  global npm upgrade, and again immediately before publishing. The second
+  call is the point of it — the Node 18 smoke test re-runs
+  `actions/setup-node`, which can put the Node-bundled npm (10.9.x, below
+  trusted publishing's 11.5.1 floor) back on PATH, and the failure that
+  causes is an authentication error at `npm publish` that names no version.
+
+### Changed
+
+- README (both languages): the two conditions that fail *after* installing —
+  the ~270–290 KB gzipped floor per entry point (~560 KB for the whole API)
+  and the full-ICU requirement for the default NFKC normalization — now sit
+  directly under the install command instead of ~300 lines further down,
+  and "Known limitations" comes before the API reference rather than after
+  it. Added npm-version, runtime and module-format badges. The CI-coverage
+  detail that opened the README moved into "Support and scope", so the
+  problem statement is what a reader meets first.
+- The `EOTP` diagnostic in `scripts/npm-publish.sh` said the fix was to
+  recreate `NPM_TOKEN`, without noting that reaching that error at all means
+  the run authenticated with a token rather than through OIDC — the trusted
+  publishing path never asks for a one-time password.
+
 ## 0.1.0 — 2026-08-10
 
 First release.

@@ -1,8 +1,11 @@
 # itaiji-normalize
 
+[![npm](https://img.shields.io/npm/v/itaiji-normalize.svg)](https://www.npmjs.com/package/itaiji-normalize)
 [![CI](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatomerde/itaiji-normalize/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Data: CC BY-SA 2.1 JP](https://img.shields.io/badge/data-CC%20BY--SA%202.1%20JP-lightgrey.svg)](./LICENSE-DATA)
+[![Node.js 18+ · browsers · Workers](https://img.shields.io/badge/runs%20on-Node%2018%2B%20%C2%B7%20browsers%20%C2%B7%20Workers-brightgreen.svg)](#インストール)
+[![module: ESM + CJS](https://img.shields.io/badge/module-ESM%20%2B%20CJS-blue.svg)](#インストール)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
 
 [English](./README.md) | **日本語**
@@ -10,13 +13,10 @@
 IPA の**MJ縮退マップ**(ハードコード辞書ではなく公的データ)を根拠とする、
 日本語異体字の縮退変換・等価判定・名寄せキー生成ライブラリ。
 
-依存ゼロ。全データを同梱し、ビルド時・実行時とも外部ネットワークへアクセスしない。
-
-対応を謳うランタイムはすべて、ソースではなく**ビルド成果物**に対して CI で
-実行検証している: **Node.js 18+**(公開する tarball を Node 18 に install して
-`require()` と `import()` の両方で呼び出し、加えて Node 20・22 で全テスト)、
-**ブラウザ**(ESM バンドルを headless Chromium にモジュールスクリプトとして読み込み)、
-**Cloudflare Workers**(Workers が実際に使うランタイム workerd 上でバンドルを実行)。
+依存ゼロ。ESM と CommonJS の両方を同梱し、**Node.js 18 以上・ブラウザ・
+Cloudflare Workers** でそのまま動く。全データを同梱し、ビルド時・実行時とも外部
+ネットワークへアクセスしない。(これらのランタイムはいずれもビルド成果物に対して
+CI で実行検証している。詳細は[サポート範囲](#サポート範囲)。)
 
 ## なぜ作ったか
 
@@ -45,6 +45,17 @@ JIS表現可能なペア(啞→唖、鷗→鴎 等)は、どちらも縮退の�
 ```sh
 npm install itaiji-normalize
 ```
+
+導入前に知っておくべき条件が2点ある。どちらも install 時ではなく**入れたあとに**
+効いてくるもの。詳細は[既知の制約](#既知の制約)。
+
+- **同梱テーブルが大きい**: 単一エントリポイントでも gzip 約 270〜290 KB、
+  **API 全体では約 560 KB**。Cloudflare Workers では 1 MB 予算の半分を超える。
+  必要なものだけ import すること(テーブルには `/* @__PURE__ */` が付いており、
+  使わない分はバンドラが落とせる)。
+- **既定の `unicodeNormalize: "NFKC"` には full ICU が必要**。公式 Node ビルド・
+  Chromium・workerd はいずれも持っているが、`--with-intl=small-icu` でビルドした
+  Node は持たず、`unicodeNormalize: false` を渡さない限り異なるキーを生成する。
 
 ## 使用例
 
@@ -100,6 +111,54 @@ MJ縮退マップは多対一の対応関係(複数の MJ 字形が同じ JIS �
 - **バージョン `0.x`。API は変わりうる。** 個人プロジェクトであり、対応は
   ベストエフォートで行う。Issue や Pull Request は歓迎するが、応答時期は保証しない。
   本ソフトウェアは MIT ライセンスのとおり無保証(as is)で提供する。
+- **上で対応を謳ったランタイムはすべて、ソースではなくビルド成果物に対して CI で
+  実行検証している**: **Node.js 18+**(公開する tarball を Node 18 に install して
+  `require()` と `import()` の両方で呼び出し、加えて Node 20・22 で全テスト)、
+  **ブラウザ**(ESM バンドルを headless Chromium にモジュールスクリプトとして読み込み)、
+  **Cloudflare Workers**(Workers が実際に使うランタイム workerd 上でバンドルを実行)。
+  CI が覆っていない範囲は[既知の制約](#既知の制約)に挙げてある。
+
+## 既知の制約
+
+推定ではなく実測値。採用前に検討してほしい。
+
+**バンドルサイズ。** テーブルは大きい。`esbuild --bundle --minify --format=esm`
+で minify + gzip した概算値(バンドラとそのバージョンにより数 KB 前後する):
+
+| import する対象 | gzip |
+| --- | --- |
+| `isVariant` のみ | 約 290 KB |
+| `reduce` のみ | 約 270 KB |
+| `toMatchingKey` | 約 271 KB |
+| API 全体 | 約 562 KB |
+
+生成テーブルには `/* @__PURE__ */` を付けてあり、使わないテーブルはバンドラが
+削除できる(付ける前は全利用者が全テーブル分を負担していた)。ただし API 全体を
+使う場合は全額かかり、Cloudflare Workers の 1 MB(gzip)予算の半分以上を消費する。
+テーブルのコンパクトな再符号化はロードマップにあり、未実装。
+
+**`unicodeNormalize: "NFKC"`(既定)は漢字以外も畳む。** NFKC は互換正規化
+なので、想定外の書き換えも起きる: `㈱`→`(株)`、`№`→`No`、`①②③`→`123`、
+`㌢`→`センチ`、`ﬁ`→`fi`、`Ⅻ`→`XII`。名寄せでは通常望ましい挙動だが、
+キーが入力より長くなることがある。入力の形を保ちたい場合は `"NFC"` か
+`false` を渡す。
+
+**full ICU が必要。** `String.prototype.normalize` は full ICU データを要する。
+公式の Node.js ビルドに加え、Chromium と workerd も満たす — CI のブラウザ/Workers
+ジョブが NFKC の畳み込みを実際に assert しているので、ICU 欠落のランタイムなら
+黙って別のキーを出すのではなくジョブが落ちる。`--with-intl=small-icu`(や `none`)で
+ビルドされた Node では正しく正規化されないので、その場合は
+`unicodeNormalize: false` を使う。
+
+**スループット。** 短い氏名で `toMatchingKey` およそ 50〜70 万回/秒(10万件で
+約150〜210ms、計測した複数マシン、Node 22)。約束ではなくオーダーの目安として
+扱ってほしい。呼び出しをまたぐキャッシュは意図的に持たない(隠れたグローバル
+状態になるため)。数百万行を処理してさらに速度が必要なら、呼び出し側で文字単位に
+メモ化してほしい。
+
+**CI がカバーしていない範囲。** Node 18/20/22・headless Chromium・workerd 以外の
+ランタイム、とくに Deno・Bun・Chromium 以外のブラウザ。バンドルにエンジン固有の
+要素は無いが、それは推論であって証拠ではないため未検証として扱ってほしい。
 
 ## API リファレンス
 
@@ -321,48 +380,6 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 公開パッケージ内では、ライセンス対象データは独立したファイルではなく
 `dist/index.js` と `dist/index.cjs` にコンパイルされて含まれる。
 `LICENSE-DATA` はこの2ファイルを明示している。
-
-## 既知の制約
-
-推定ではなく実測値。採用前に検討してほしい。
-
-**バンドルサイズ。** テーブルは大きい。`esbuild --bundle --minify --format=esm`
-で minify + gzip した概算値(バンドラとそのバージョンにより数 KB 前後する):
-
-| import する対象 | gzip |
-| --- | --- |
-| `isVariant` のみ | 約 290 KB |
-| `reduce` のみ | 約 270 KB |
-| `toMatchingKey` | 約 271 KB |
-| API 全体 | 約 562 KB |
-
-生成テーブルには `/* @__PURE__ */` を付けてあり、使わないテーブルはバンドラが
-削除できる(付ける前は全利用者が全テーブル分を負担していた)。ただし API 全体を
-使う場合は全額かかり、Cloudflare Workers の 1 MB(gzip)予算の半分以上を消費する。
-テーブルのコンパクトな再符号化はロードマップにあり、未実装。
-
-**`unicodeNormalize: "NFKC"`(既定)は漢字以外も畳む。** NFKC は互換正規化
-なので、想定外の書き換えも起きる: `㈱`→`(株)`、`№`→`No`、`①②③`→`123`、
-`㌢`→`センチ`、`ﬁ`→`fi`、`Ⅻ`→`XII`。名寄せでは通常望ましい挙動だが、
-キーが入力より長くなることがある。入力の形を保ちたい場合は `"NFC"` か
-`false` を渡す。
-
-**full ICU が必要。** `String.prototype.normalize` は full ICU データを要する。
-公式の Node.js ビルドに加え、Chromium と workerd も満たす — CI のブラウザ/Workers
-ジョブが NFKC の畳み込みを実際に assert しているので、ICU 欠落のランタイムなら
-黙って別のキーを出すのではなくジョブが落ちる。`--with-intl=small-icu`(や `none`)で
-ビルドされた Node では正しく正規化されないので、その場合は
-`unicodeNormalize: false` を使う。
-
-**スループット。** 短い氏名で `toMatchingKey` およそ 50〜70 万回/秒(10万件で
-約150〜210ms、計測した複数マシン、Node 22)。約束ではなくオーダーの目安として
-扱ってほしい。呼び出しをまたぐキャッシュは意図的に持たない(隠れたグローバル
-状態になるため)。数百万行を処理してさらに速度が必要なら、呼び出し側で文字単位に
-メモ化してほしい。
-
-**CI がカバーしていない範囲。** Node 18/20/22・headless Chromium・workerd 以外の
-ランタイム、とくに Deno・Bun・Chromium 以外のブラウザ。バンドルにエンジン固有の
-要素は無いが、それは推論であって証拠ではないため未検証として扱ってほしい。
 
 ## ロードマップ / v1 非対応
 

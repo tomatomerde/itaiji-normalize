@@ -362,6 +362,19 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
   → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
   戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
   リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
+  - 2026-08-11 追記: publish 直前の npm 版を再確認するステップを足した
+    (`scripts/assert-npm-version.sh`。3案件でバイト一致)。**Node 18 スモークテストの
+    あとに `setup-node` をもう一度走らせるこのワークフローが、まさにその穴を持つ**——
+    tool cache から Node を選び直すと同梱 npm (10.9.x、OIDC の下限 11.5.1 未満) に
+    戻りうる。スクリプト自体は stub `npm` で 11.5.0 が落ち 11.5.1 が通ることを確認済みだが、
+    **ランナー上で実際に版が下がるかどうかは次のリリースまで未検証**
+- **マージ済みブランチが6本残っている**（`claude/add-contributing` /
+  `claude/drop-legacy-template-header` / `claude/readme-editorial` /
+  `claude/readme-pre-release` / `claude/rename-to-itaiji-normalize` /
+  `claude/repo-rename-urls`）。2026-08-11 に `git cherry` で6本とも全コミットが
+  main にパッチ等価で入っていることを確認済み。**セッションの資格情報では削除できない**
+  （`git push --delete` が 403）ので人間の操作が要る。再発防止として
+  `gh repo edit tomatomerde/itaiji-normalize --delete-branch-on-merge` を先に入れておくとよい
 ブランチ保護と GitHub の description / topics は 2026-08-10 に設定済み。保護の内容は
 `main` への直 push 禁止、required checks は `test (20)` / `test (22)` / `browser` /
 `workers` / `smoke-node18`、`strict: false`、`enforce_admins: true`、承認0件。
@@ -384,6 +397,21 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
    選ぶ」と書いたが、**「より一般的な JIS 水準」の判定基準がリポジトリ内から
    再現できない**。ラウンド7はこれを推測で埋めず未検証のままとした。
    この数値を根拠に何かを決める前に、判定基準ごと再現すること
+
+## ラウンド8(2026-08-11、公開後レビュー)
+
+3案件横断のレビュー。このリポジトリで動かして確認したこと:
+
+- `npm ci` → `build:tables` 再生成で **`src/generated/tables.ts` に差分ゼロ** →
+  build → テスト 91/91 → typecheck → `verify-snapshots.sh` が
+  `PROVENANCE.md` のハッシュと一致、まで通した
+- README のコード例(`reduce("﨑")` / `isVariant` / `getVariants("崎")` の5件 /
+  `toMatchingKey("田中﨑")`)を**ビルド成果物に対して実行**し、記載どおりの出力を確認
+- 「既知の制約」のバンドルサイズを実測し直した(`esbuild --bundle --minify --format=esm`
+  + gzip): isVariant 286KB / reduce 272KB / toMatchingKey 273KB / 全体 559KB。
+  表の「約290/270/271/562KB」と数KB以内で一致しており、表の但し書きの範囲内
+
+構成の指摘に対応した内容は `CHANGELOG.md` の Unreleased 節にある。
 
 ## まだ検証していない領域(ラウンド8の候補)
 

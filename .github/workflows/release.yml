@@ -69,24 +69,7 @@ jobs:
         shell: bash
         run: |
           npm install -g npm@latest
-          v=$(npm --version)
-          echo "npm $v"
-          node -e '
-            const [have] = process.argv.slice(1);
-            const need = "11.5.1";
-            const cmp = (a, b) => {
-              const pa = a.split("-")[0].split(".").map(Number);
-              const pb = b.split("-")[0].split(".").map(Number);
-              for (let i = 0; i < 3; i++) {
-                if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
-              }
-              return 0;
-            };
-            if (cmp(have, need) < 0) {
-              console.error(`::error::npm ${have} is too old for trusted publishing; ${need} or later is required. The workflow upgrades npm globally, so this means that upgrade did not take effect.`);
-              process.exit(1);
-            }
-          ' "$v"
+          ./scripts/assert-npm-version.sh "after install"
 
       - name: Determine release plan
         shell: bash
@@ -323,6 +306,18 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      # The Node 18 smoke test above needed a second setup-node, and this third
+      # one puts 22 back. That is exactly the situation where the global
+      # `npm install -g npm@latest` from the top of the job can be undone —
+      # selecting a Node version from the tool cache can bring its bundled npm
+      # (10.9.x) back onto PATH, which is below trusted publishing's 11.5.1
+      # floor. The failure that would cause is an authentication error at
+      # `npm publish` that names no version, so assert here, with nothing
+      # between this and the publish step that could change npm again.
+      - name: Re-assert npm version immediately before publishing
+        shell: bash
+        run: ./scripts/assert-npm-version.sh "immediately before publish"
 
       # --tag is not optional. `npm publish` with no --tag moves `latest`
       # even for a semver prerelease — npm does not special-case them — so
