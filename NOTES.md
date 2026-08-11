@@ -417,8 +417,10 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 各ラウンドのレビューが「見ていない」と明言した領域:
 
-- Deno / Bun / Chromium 以外のブラウザでの実行(Node 18/20/22・Chromium・
-  workerd は CI で実行検証済み)
+- Deno / Chromium 以外のブラウザでの実行(Node 18/20/22・Chromium・workerd は
+  CI で実行検証済み。**Bun は 2026-08-11 に消し込み**: Bun 1.3.14 で dist/index.cjs を
+  `require()`、dist/index.js を `import()` し、reduce/toMatchingKey/isVariant/getVariants の
+  スモークが両形式とも通った)
 - 推論エッジ3,000件が個別に妥当かどうか。ラウンド6で根拠カテゴリ別の内訳
   (告示582のみ 1,427 / カテゴリ横断 1,573)と、2ホップで到達できない53対までは
   出したが、1件ずつの妥当性は未確認
