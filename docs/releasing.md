@@ -1,253 +1,256 @@
-# Releasing
+# リリース
 
-How `itaiji-normalize` gets to npm. The pipeline is
-[`.github/workflows/release.yml`](../.github/workflows/release.yml); this page explains the parts
-of it that a reader would otherwise have to reverse-engineer, and the two decisions that are easy
-to get wrong.
+`itaiji-normalize` を npm に出す方法。パイプラインは
+[`.github/workflows/release.yml`](../.github/workflows/release.yml)。このページで説明するのは、
+読み手がリバースエンジニアリングしないとわからない部分と、間違えやすい2つの判断である。
 
-## Trusted publishing (how the workflow authenticates)
+## Trusted publishing（ワークフローの認証方式）
 
-**The workflow carries no npm token.** It publishes through npm *trusted publishing*: GitHub
-Actions mints a short-lived OIDC token, npm verifies it against a trusted publisher registered on
-the package, and the publish is authorised without any long-lived secret. Provenance attestations
-are generated automatically on this path, which is why there is no `--provenance` flag.
+**ワークフローは npm トークンを持たない。** npm の *trusted publishing* で公開する: GitHub
+Actions が短命の OIDC トークンを発行し、npm がパッケージに登録された trusted publisher と
+照合し、長寿命のシークレットなしで公開が認可される。この経路では provenance アテステーションが
+自動生成されるため、`--provenance` フラグは存在しない。
 
-Registered on npmjs.com under *Settings → Trusted Publisher* (2026-08-10):
+npmjs.com の *Settings → Trusted Publisher* に登録済み（2026-08-10）:
 
-| Field | Value |
+| 項目 | 値 |
 | --- | --- |
 | Publisher | GitHub Actions |
 | Organization or user | `tomatomerde` |
 | Repository | `itaiji-normalize` |
 | Workflow filename | `release.yml` |
-| Environment name | **empty** — the job declares no GitHub Environment, and a mismatch here rejects the publish |
-| Allowed actions | `npm publish` and `npm stage publish` |
+| Environment name | **空** — ジョブは GitHub Environment を宣言しておらず、ここが食い違うと公開が拒否される |
+| Allowed actions | `npm publish` と `npm stage publish` |
 
-Three things the workflow must keep, or authentication breaks:
+認証を壊さないためにワークフローが守り続けるべきことは3つ:
 
-- **`id-token: write`** in `permissions`. Without it there is no OIDC token to exchange.
-- **npm >= 11.5.1.** The runner's bundled npm does not meet this, so the
-  `Ensure npm supports trusted publishing` step upgrades npm and asserts the version. It fails
-  early and legibly instead of as an authentication error after the whole pipeline has run.
-- **The workflow filename must stay `release.yml`.** The trusted publisher is registered against
-  that exact name; renaming the file silently invalidates it.
+- `permissions` の **`id-token: write`**。これがないと、交換する OIDC トークンがそもそもない。
+- **npm >= 11.5.1。** ランナー同梱の npm はこれを満たさないため、
+  `Ensure npm supports trusted publishing` ステップが npm をアップグレードしてバージョンを
+  検証する。パイプライン全体を走らせた後に認証エラーとして失敗する代わりに、早い段階で
+  わかりやすく失敗する。
+- **ワークフローのファイル名は `release.yml` のまま保つこと。** trusted publisher はこの名前
+  そのものに対して登録されており、ファイルをリネームすると気づかないうちに無効になる。
 
-### The npm version moves during the run
+### npm のバージョンは実行中に動く
 
-That guard step is the only part of the OIDC path a dry run can reach, and the dry run of
-2026-08-10 (run `31403006092`, on the merge commit that introduced this) measured:
+このガードステップは、OIDC 経路のうち dry run が到達できる唯一の部分である。2026-08-10 の
+dry run（run `31403006092`、これを導入したマージコミット上）での計測:
 
-| Point in the run | npm |
+| 実行中の時点 | npm |
 | --- | --- |
-| after the first `setup-node` (Node 22's bundled npm) | **10.9.8** — below the requirement |
-| after the guard's `npm install -g npm@latest` | 12.0.2 |
-| during the Node 18 smoke test | 10.8.2 |
-| at the publish step, after `setup-node` returns to Node 22 | **12.0.2** |
+| 最初の `setup-node` の後（Node 22 同梱の npm） | **10.9.8** — 要件未満 |
+| ガードの `npm install -g npm@latest` の後 | 12.0.2 |
+| Node 18 スモークテスト中 | 10.8.2 |
+| publish ステップ時点、`setup-node` が Node 22 に戻った後 | **12.0.2** |
 
-Two things worth keeping from that table. The bundled npm really is too old — without the guard
-this pipeline would reach `npm publish` and fail with an authentication error that says nothing
-about versions. And **the version dips and recovers**: re-running `setup-node` for the Node 18 leg
-swaps the whole toolchain, and the upgrade only survives because the final `setup-node` selects the
-same Node 22 from the tool cache that the guard upgraded in place. Point the last `setup-node` at a
-different version and npm silently reverts to the bundled one. If the publish leg's Node version
-ever changes, re-read the version at that point rather than assuming the guard still holds.
+この表から覚えておくべきことは2つ。同梱の npm は本当に古すぎる — ガードがなければこの
+パイプラインは `npm publish` まで到達し、バージョンについて何も語らない認証エラーで失敗して
+いた。そして**バージョンは一度下がってから戻る**: Node 18 の区間のために `setup-node` を
+再実行するとツールチェーン全体が入れ替わり、アップグレードが生き残るのは、最後の `setup-node`
+がガードのその場アップグレードを受けたのと同じ Node 22 をツールキャッシュから選ぶからに
+すぎない。最後の `setup-node` を別のバージョンに向ければ、npm は黙って同梱版に戻る。publish
+区間の Node バージョンをいつか変えるなら、ガードがまだ効いていると仮定せず、その時点の
+バージョンを読み直すこと。
 
-### Verified: `0.1.1` went out through OIDC
+### 検証済み: `0.1.1` は OIDC 経由で出た
 
-`0.1.0` was published with a token on 2026-08-10 and this switch came afterwards, so the first real
-exercise of the token exchange had to wait for the next version bump — dry runs never reach
-`npm publish`, and re-pushing `v0.1.0` would have been skipped as already on the registry.
+`0.1.0` は 2026-08-10 にトークンで公開され、この切り替えはその後だったため、トークン交換の
+最初の実地検証は次のバージョンアップを待つしかなかった — dry run は `npm publish` に決して
+到達せず、`v0.1.0` を再 push しても registry に既にあるとしてスキップされていたからだ。
 
-That bump was **`v0.1.1`, published 2026-08-12** (run `31558135329`), and it went through the OIDC
-path with no npm credential in the job:
+そのバージョンアップが **2026-08-12 公開の `v0.1.1`**（run `31558135329`）で、ジョブ内に npm
+の資格情報が一切ない状態で OIDC 経路を通った:
 
 ```text
 npm notice publish Signed provenance statement with source and build information from GitHub Actions
 npm notice publish Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=2430002951
 ```
 
-The same run also settled the question the table above raises. `npm 12.0.2` was still in place at
-the publish step — the final `setup-node` found Node 22.23.1 in the tool cache, as predicted, so the
-in-place upgrade survived. **The dip back to a bundled npm has therefore still never been observed
-on a real run**; `assert-npm-version.sh` guards a hazard that has not yet fired, which is the point
-of it, but it is not evidence that the hazard is real.
+同じ run で、上の表が提起する疑問にも決着がついた。publish ステップの時点でも `npm 12.0.2`
+のままだった — 最後の `setup-node` は予測どおりツールキャッシュから Node 22.23.1 を見つけ、
+その場アップグレードは生き残った。**したがって、同梱 npm への逆戻りは実際の run ではいまだ
+一度も観測されていない**。`assert-npm-version.sh` はまだ発火したことのないハザードをガード
+している。それこそが存在意義だが、ハザードが実在する証拠ではない。
 
-**`NPM_TOKEN` is no longer a rollback path** — a release has now gone out without it. Removing it
-from the repository secrets and from npmjs.com is tracked in `NOTES.md`.
+**`NPM_TOKEN` はもうロールバック経路ではない** — トークンなしでリリースが実際に出たからだ。
+リポジトリの secrets と npmjs.com からの削除は `NOTES.md` で追跡している。
 
-## The npm token (superseded — kept for the failure modes it documents)
+## npm トークン（廃止済み — 記録された失敗モードのために残す）
 
-Everything below describes the token path this workflow no longer uses, and no longer needs. It is
-kept because the failure modes are hard-won and still apply to publishing as an account by hand. It
-is **not** a live rollback: re-introducing a token would mean re-introducing a long-lived publish
-credential that trusted publishing has made unnecessary.
+以下は、このワークフローがもう使わず、もう必要としないトークン経路の記述である。残してあるのは、
+苦労して得た失敗モードが、アカウントとして手で publish する場合には今も当てはまるからだ。
+これは**生きた**ロールバックではない: トークンの再導入は、trusted publishing が不要にした
+長寿命の publish 資格情報の再導入を意味する。
 
-**`NPM_TOKEN`** was an Actions secret. Nothing in `release.yml` references it any more, so deleting
-it cannot break a release; what it closes off is falling back to token auth without editing the
-workflow, which is deliberate.
+**`NPM_TOKEN`** は Actions のシークレットだった。`release.yml` はもうどこからも参照して
+いないので、削除してもリリースは壊れない。削除が閉ざすのは、ワークフローを編集せずにトークン
+認証へフォールバックする道であり、それは意図的なものだ。
 
 ```sh
 # Historical — this is how it used to be set:
 gh secret set NPM_TOKEN --repo tomatomerde/itaiji-normalize
 ```
 
-Create the token at <https://www.npmjs.com/settings/~/tokens>. npm has merged classic and granular
-token creation into a single form; the fields that matter:
+トークンは <https://www.npmjs.com/settings/~/tokens> で作る。npm は classic と granular の
+トークン作成を単一のフォームに統合した。重要な項目:
 
-| Field | Value | Why |
+| 項目 | 値 | 理由 |
 | --- | --- | --- |
-| **Bypass two-factor authentication (2FA)** | **ticked** | Without it npm demands a one-time password on publish, which CI cannot supply |
-| Packages and scopes → Permissions | **Read and write** | Defaults to read-only |
-| Select packages | **All packages** | An unpublished name does not appear in the per-package picker, so the first publish of a new name needs account-wide scope. Narrow it afterwards |
-| IP ranges | **leave empty** | GitHub-hosted runners have no stable egress IP |
-| Organizations → Permissions | No access | Not needed |
+| **Bypass two-factor authentication (2FA)** | **チェックを入れる** | これがないと npm は publish 時にワンタイムパスワードを要求し、CI はそれを供給できない |
+| Packages and scopes → Permissions | **Read and write** | デフォルトは read-only |
+| Select packages | **All packages** | 未公開の名前はパッケージ別の選択肢に現れないため、新しい名前の初回 publish にはアカウント全体のスコープが要る。公開後に絞ること |
+| IP ranges | **空のまま** | GitHub ホストのランナーには固定の egress IP がない |
+| Organizations → Permissions | No access | 不要 |
 
-**The 2FA checkbox is the one that bites, and it is invisible until the publish itself.** A token
-created without it is rejected from CI with:
+**噛みつくのはこの 2FA チェックボックスで、しかも publish 本番まで見えない。** これなしで
+作ったトークンは、CI から次のエラーで拒否される:
 
 ```text
 npm error code EOTP
 npm error This operation requires a one-time password from your authenticator.
 ```
 
-This happened twice on the sibling project's `v0.1.0-rc.1` (2026-08-10) — nothing was published
-either time, but each attempt cost a full pipeline run first. **Regenerating an existing token does
-not change this setting**; a new token has to be created with the box ticked.
-`scripts/npm-publish.sh` recognises `EOTP` and names the checkbox.
+これは姉妹プロジェクトの `v0.1.0-rc.1`（2026-08-10）で2回起きた — どちらの回も何も公開され
+なかったが、毎回まずパイプライン1周分のコストがかかった。**既存トークンを再生成してもこの
+設定は変わらない**。チェックを入れた新しいトークンを作り直す必要がある。
+`scripts/npm-publish.sh` は `EOTP` を認識してこのチェックボックスの名前を出す。
 
-No dry run can validate the token, because dry runs never reach `npm publish` — which is the
-strongest argument for the release-candidate procedure below.
+dry run ではトークンを検証できない。dry run は `npm publish` に決して到達しないからで、
+これが下のリリース候補（release candidate）手順の最も強い論拠になる。
 
-Nothing else needs setting up. The workflow's own `permissions:` block grants `contents: write`
-for the GitHub Release and `id-token: write` for provenance.
+他に設定するものはない。ワークフロー自身の `permissions:` ブロックが、GitHub Release 用の
+`contents: write` と provenance 用の `id-token: write` を与える。
 
 ## Provenance
 
-Every publish carries an npm provenance attestation. Under trusted publishing npm mints it
-automatically, which is why the publish command carries no `--provenance` flag — the flag belongs to
-the token path and is gone.
+すべての publish は npm の provenance アテステーションを伴う。trusted publishing の下では
+npm が自動で発行するため、publish コマンドに `--provenance` フラグはない — このフラグは
+トークン経路のものであり、もう存在しない。
 
-**`--access public` stays.** It is not there for provenance any more, but removing it would put back
-a failure this repository has already paid for once. For a name the registry does not know yet, npm
-refuses to mint an attestation unless access is stated explicitly:
+**`--access public` は残す。** もはや provenance のためではないが、外すと、このリポジトリが
+一度代償を払った失敗が戻ってくる。registry がまだ知らない名前に対して、npm は access を明示
+しない限りアテステーションの発行を拒む:
 
 ```text
 npm error code EUSAGE
 npm error Can't generate provenance for new or private package, you must set `access` to public.
 ```
 
-An unscoped package is public by default, so the flag looks redundant, and npm still rejects it:
-"default" is not "explicitly public". **This failed the first real `v0.1.0` tag push on
-2026-08-10** — the sibling project survived only because its `package.json`s happened to carry
-`publishConfig.access`. Both are set here now: the flag in `scripts/npm-publish.sh`, and
-`publishConfig.access` in `package.json` so a manual publish behaves the same.
+スコープなしパッケージはデフォルトで public なのでフラグは冗長に見えるが、それでも npm は
+拒否する: 「デフォルト」は「明示的に public」ではない。**これは 2026-08-10 の最初の実際の
+`v0.1.0` tag push を失敗させた** — 姉妹プロジェクトが無事だったのは、その `package.json` 群が
+たまたま `publishConfig.access` を持っていたからにすぎない。ここでは今、両方を設定してある:
+`scripts/npm-publish.sh` のフラグと、手動 publish でも同じ挙動になるようにするための
+`package.json` の `publishConfig.access`。
 
-The attestation means the tarball
-on npm can be traced to the commit and workflow run that produced it. Two things it depends on,
-both easy to break without noticing:
+アテステーションにより、npm 上の tarball は、それを生成したコミットとワークフロー run まで
+遡れる。これは2つの前提に依存し、どちらも気づかずに壊しやすい:
 
-- **`repository.url` in `package.json` must name this repository.** npm compares it against the
-  repository the workflow runs in and **fails the publish** if they disagree — it does not quietly
-  fall back to publishing without an attestation.
-- **The repository must stay public.** npm provenance requires a public source repository.
+- **`package.json` の `repository.url` はこのリポジトリを指していなければならない。** npm は
+  ワークフローが走っているリポジトリと突き合わせ、食い違えば **publish を失敗させる** —
+  アテステーションなしの公開へ黙ってフォールバックしたりはしない。
+- **リポジトリは public のまま保つこと。** npm provenance は public なソースリポジトリを要求する。
 
-## Tag scheme and the dist-tag
+## タグの形式と dist-tag
 
-One package, one tag shape: **`v<version>`**, e.g. `v0.1.0`. Anything else fails the run
-immediately rather than guessing.
+パッケージは1つ、タグの形も1つ: **`v<version>`**、例 `v0.1.0`。それ以外は、推測せず即座に
+run を失敗させる。
 
-**A version containing a `-` publishes to the `next` dist-tag; everything else goes to `latest`.**
-The workflow derives this from the version alone — there is no input for it.
+**`-` を含むバージョンは `next` dist-tag へ、それ以外はすべて `latest` へ公開される。**
+ワークフローはこれをバージョンのみから導出する — そのための入力は存在しない。
 
-This is not a nicety. `npm publish` with no `--tag` moves `latest` **even for a semver
-prerelease** — npm does not special-case them. Publishing `0.1.0-rc.1` without `--tag next` would
-make `npm install itaiji-normalize` hand every user the release candidate, and the only repair is
-publishing a real version on top; in the meantime the mistake is public and looks exactly like a
-successful release. The `Release plan` step summary prints the dist-tag for that reason.
+これは体裁の問題ではない。`--tag` なしの `npm publish` は、**semver プレリリースであっても**
+`latest` を動かす — npm はプレリリースを特別扱いしない。`0.1.0-rc.1` を `--tag next` なしで
+公開すれば、`npm install itaiji-normalize` は全ユーザーにリリース候補を渡すことになり、修復
+手段はその上に本物のバージョンを公開することだけ。その間、この過ちは公開されたままで、見た目
+は成功したリリースと全く同じである。`Release plan` ステップサマリーが dist-tag を印字するのは
+そのためだ。
 
-**CHANGELOG headings are matched on the version as a whole field**, so `## 0.1.0-rc.1` and
-`## 0.1.0` are different sections and each release gets only its own. A prefix match would treat
-`## 0.1.0` as matching `## 0.1.0-rc.1 — …` as well, and because both headings match, the
-"stop at the next heading" rule never fires — the extracted notes run to the end of the file.
+**CHANGELOG の見出しはバージョンを1つのフィールド全体として照合する**ため、`## 0.1.0-rc.1`
+と `## 0.1.0` は別のセクションで、各リリースは自分のセクションだけを得る。前方一致だと
+`## 0.1.0` が `## 0.1.0-rc.1 — …` にもマッチし、両方の見出しがマッチするせいで「次の見出しで
+止まる」ルールが決して発火せず、抽出されたノートはファイル末尾まで走ってしまう。
 
-## Release candidates, and what they do and do not protect
+## リリース候補と、それが守るもの・守らないもの
 
-`npm publish` is the only step of this pipeline a dry run cannot exercise, and it cannot be undone:
-npm keeps a published version forever, and unpublishing is limited to the first 72 hours with zero
-dependents. The provenance attestation and the GitHub Release are also tag-push-only. That is the
-case for rehearsing with a candidate first.
+`npm publish` は、このパイプラインで dry run が実行できない唯一のステップであり、取り消せない:
+npm は公開されたバージョンを永久に保持し、unpublish は最初の 72 時間以内かつ依存ゼロの場合に
+限られる。provenance アテステーションと GitHub Release も tag push でしか起きない。これが、
+まず候補でリハーサルする理由である。
 
-**But a candidate does less than it looks like it does for a brand-new name.** The sibling project
-published `jp-address-romaji@0.1.0-rc.1` with `--tag next` on 2026-08-10 and found:
+**しかし新品の名前に対しては、候補は見かけほどの働きをしない。** 姉妹プロジェクトは
+2026-08-10 に `jp-address-romaji@0.1.0-rc.1` を `--tag next` で公開し、次を確認した:
 
-- **The first version ever published to a name becomes `latest` regardless of `--tag`.** The
-  registry has to point `latest` somewhere, and on a new package there is nothing else to point at.
-  `latest` cannot be deleted, so the only repair is publishing the real version. A candidate
-  therefore does **not** keep `npm install <pkg>` clean on a first release — it only buys a
-  rehearsal of the publish path.
-- **A prerelease does not satisfy a caret range.** Any dependency or peer range written as
-  `^x.y.z` will refuse a `x.y.z-rc.N`, which can make the candidate uninstallable. Ranges that need
-  to admit prereleases must be written `^x.y.z-0`.
+- **ある名前に最初に公開されたバージョンは、`--tag` に関係なく `latest` になる。** registry は
+  `latest` をどこかへ向けなければならず、新規パッケージには他に向ける先がない。`latest` は
+  削除できないため、唯一の修復は本物のバージョンを公開すること。したがって候補は、初回リリース
+  で `npm install <pkg>` をきれいに保って**くれない** — 買えるのは publish 経路のリハーサル
+  だけだ。
+- **プレリリースはキャレット範囲を満たさない。** `^x.y.z` と書かれた依存や peer の範囲は
+  `x.y.z-rc.N` を拒否するため、候補がインストール不能になりうる。プレリリースを受け入れる
+  必要のある範囲は `^x.y.z-0` と書かなければならない。
 
-`itaiji-normalize` therefore went straight to `0.1.0`: the token path had already been proven for
-real on the sibling project, and a candidate would have moved `latest` anyway while spending a
-version number.
+`itaiji-normalize` はそれゆえ `0.1.0` に直行した: トークン経路は姉妹プロジェクトで既に実地で
+証明済みで、候補を切ってもどのみち `latest` が動くうえ、バージョン番号を1つ消費するだけ
+だったからだ。
 
-Cut a candidate when you want to rehearse a *changed* release path — not to protect a first
-release, because it cannot.
+候補を切るのは、*変更された*リリース経路をリハーサルしたいとき — 初回リリースを守るためでは
+ない。それはできないからだ。
 
-## Cutting a release
+## リリースの切り方
 
-1. Bump `version` in `package.json`.
-2. Replace that version's `## <version> — unreleased` heading in `CHANGELOG.md` with the real date,
-   e.g. `## 0.1.0 — 2026-08-12`. The workflow refuses to publish while it says `unreleased`, and
-   the GitHub Release body comes from that section. Commit both changes.
-3. `git tag v<version> && git push origin v<version>`.
-4. Watch the run. The step summary carries the release plan (trigger, dry_run, version, dist-tag)
-   and the full tarball listing; read them even on green.
+1. `package.json` の `version` を上げる。
+2. `CHANGELOG.md` のそのバージョンの `## <version> — unreleased` 見出しを実際の日付に置き換える。
+   例: `## 0.1.0 — 2026-08-12`。`unreleased` のままだとワークフローは公開を拒み、GitHub Release
+   の本文はこのセクションから来る。両方の変更をコミットする。
+3. `git tag v<version> && git push origin v<version>`。
+4. run を見届ける。ステップサマリーにはリリースプラン（trigger, dry_run, version, dist-tag）と
+   tarball の全ファイル一覧が載る。green でも読むこと。
 
-If the version is already on the registry when the workflow runs — for instance you are re-pushing
-a tag after a partial failure — the publish step detects it with `npm view` and skips rather than
-erroring, so re-running is safe.
+ワークフロー実行時にそのバージョンが既に registry にある場合 — 例えば部分的な失敗の後にタグを
+再 push した場合 — publish ステップは `npm view` でそれを検知し、エラーにせずスキップするので、
+再実行は安全である。
 
-## Dry runs
+## Dry run
 
-Actions tab → **Release** → **Run workflow**, with `dry_run` left at `true`. Everything except
-`npm publish` runs identically, against whatever version is currently on disk. There is no tag, so
-the version and CHANGELOG guards do not apply — which is why the version and dist-tag are printed
-to the summary, so a wrong one is visible before it matters.
+Actions タブ → **Release** → **Run workflow**、`dry_run` は `true` のまま。`npm publish` 以外の
+すべてが、そのときディスク上にあるバージョンに対して同一に実行される。タグがないため、
+バージョンと CHANGELOG のガードは適用されない — だからこそバージョンと dist-tag がサマリーに
+印字される。間違っていれば、実害が出る前に見えるように。
 
-**Run one before every real release and read it.** A previous green run is not evidence about this
-commit: the sibling project's release workflow was green by construction for months and failed the
-first time it was actually executed.
+**実リリースの前に必ず1回走らせ、読むこと。** 過去の green run はこのコミットについての証拠に
+ならない: 姉妹プロジェクトのリリースワークフローは何か月も構造上 green のままで、初めて実際に
+実行されたときに失敗した。
 
-## What the workflow checks before it will publish
+## publish 前にワークフローが確認すること
 
-In order, all of it before `npm publish`:
+順に、すべて `npm publish` より前:
 
-- `npm run typecheck`, `npm test`, `npm run build`
-- **data-snapshot verification** — `scripts/verify-snapshots.sh`, then the two-stage generated
-  chain (`mji.00602.xlsx` → `mji-list.tsv` → `src/generated/tables.ts`). The bundled data is the
-  whole point of the package, so a release that skipped this would ship tables nobody checked
-  against their source
-- `npm pack`, then the full tarball listing into the step summary
-- **tarball assertions** — all four entry points (`dist/index.js`, `dist/index.cjs`,
-  `dist/index.d.ts`, `dist/index.d.cts`), both licence files, `PROVENANCE.md`, and a size floor on
-  the bundle. The size check exists because the MJ tables are *compiled into* the bundle rather
-  than shipped as a data file, so presence alone cannot tell a real build from a stub. Measured
-  2,512,700 bytes on 2026-08-10; the floor is 2,000,000
-- `@arethetypeswrong/cli` on the packed tarball, full strict profile — this package ships both ESM
-  and CJS with separate declarations, so all four resolution modes are promises it makes
-- **a Node 18 smoke test against the packed tarball**, through both `require()` and `import`. The
-  test suite cannot run on Node 18 (the dev toolchain needs 20.12+), so without this the
-  `engines: ">=18"` claim would ship unverified
+- `npm run typecheck`、`npm test`、`npm run build`
+- **データスナップショットの検証** — `scripts/verify-snapshots.sh`、続いて二段階の生成
+  チェーン（`mji.00602.xlsx` → `mji-list.tsv` → `src/generated/tables.ts`）。同梱データこそが
+  このパッケージの存在意義なので、これを飛ばしたリリースは、誰も出典と突き合わせていない
+  テーブルを出荷することになる
+- `npm pack`、続いて tarball の全ファイル一覧をステップサマリーへ
+- **tarball のアサーション** — 4つのエントリポイントすべて（`dist/index.js`、`dist/index.cjs`、
+  `dist/index.d.ts`、`dist/index.d.cts`）、両方のライセンスファイル、`PROVENANCE.md`、そして
+  バンドルのサイズ下限。サイズチェックがあるのは、MJ テーブルがデータファイルとしてではなく
+  バンドルに*コンパイルされて*入るため、存在確認だけでは本物のビルドとスタブを区別できない
+  からだ。2026-08-10 の実測は 2,512,700 バイトで、下限は 2,000,000
+- pack した tarball への `@arethetypeswrong/cli`、full strict プロファイル — このパッケージは
+  ESM と CJS を別々の型宣言付きで出荷しており、4つの解決モードすべてが約束である
+- **pack した tarball への Node 18 スモークテスト**、`require()` と `import` の両方経由。
+  テストスイートは Node 18 では動かせない（開発ツールチェーンは 20.12+ を要求する）ため、
+  これがないと `engines: ">=18"` の主張は未検証のまま出荷される
 
-Browser and Cloudflare Workers support is checked by `ci.yml` on every push to `main`, against the
-same built bundle from the same commit, rather than duplicated here. Do not release from a commit
-whose CI is red.
+ブラウザと Cloudflare Workers のサポートは、ここで重複させるのではなく、`ci.yml` が `main`
+への push ごとに、同じコミットの同じビルド済みバンドルに対して確認する。CI が red のコミット
+からリリースしないこと。
 
-## What is not covered
+## カバーされないもの
 
-- `npm publish` itself, the provenance attestation, and the GitHub Release only happen on a real
-  tag push — that is what the release candidate above is for.
-- Nothing here checks that the *published* package works. Step 3 of the rc procedure does, by hand.
+- `npm publish` 自体、provenance アテステーション、GitHub Release は実際の tag push でしか
+  起きない — 上のリリース候補はそのためにある。
+- ここにあるものは何一つ、*公開された*パッケージが動くことを確認しない。rc 手順のステップ3が
+  手作業でそれを行う。
