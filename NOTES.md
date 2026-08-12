@@ -355,19 +355,27 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 ### 残っているもの
 
-- **trusted publishing 経由のリリースがまだ1本も出ていない。** 移行自体は済んでいて
-  ワークフローにトークンは無いが、**通ることを確かめる手段が次のリリースしかない**。
-  dry run は `npm publish` に到達せず、`v0.1.0` を押し直しても
-  「既にレジストリにある」でスキップされる（2026-08-10 の dry run の出力がそれ）。
-  → **`NPM_TOKEN` の secret は消さない。** 現在は未使用だが、交換が失敗したときの
-  戻り先になる。**このトークンは 2026-08-10 から90日で失効する**ので、それまでに
-  リリースが1本も出なければ、更新するか戻り先を捨てるかを意識的に決めること
-  - 2026-08-11 追記: publish 直前の npm 版を再確認するステップを足した
-    (`scripts/assert-npm-version.sh`。3案件でバイト一致)。**Node 18 スモークテストの
-    あとに `setup-node` をもう一度走らせるこのワークフローが、まさにその穴を持つ**——
-    tool cache から Node を選び直すと同梱 npm (10.9.x、OIDC の下限 11.5.1 未満) に
-    戻りうる。スクリプト自体は stub `npm` で 11.5.0 が落ち 11.5.1 が通ることを確認済みだが、
-    **ランナー上で実際に版が下がるかどうかは次のリリースまで未検証**
+- **人間の操作待ち: `NPM_TOKEN` を消すこと。** trusted publishing 経由のリリースは
+  **もう出た**——`v0.1.1`（2026-08-12、run `31558135329`）が
+  `Signed provenance statement with source and build information from GitHub Actions` を
+  出して publish されている。戻り先として残す理由が無くなったので、
+  **未使用のまま生きている publish 資格情報**という一番良くない状態になっている。
+  セッションからはシークレットを削除する手段が無いので、人間が2つとも実行すること
+  （Actions secret を先に消す。npm 側だけ先に消すと、動かないシークレットが残る）:
+
+  ```sh
+  gh secret delete NPM_TOKEN --repo tomatomerde/itaiji-normalize
+  ```
+
+  そのうえで <https://www.npmjs.com/settings/~/tokens> でトークン本体を revoke する。
+  **同じトークンが jp-address-romaji と japan-calendar でも使われている**ので、
+  npm 側の revoke は3案件の Actions secret を消してから1回だけ行う。
+  `release.yml` は3案件とも `NPM_TOKEN` を一切参照していないため、消してもリリースは壊れない
+  - 2026-08-11 に足した `scripts/assert-npm-version.sh`（publish 直前の npm 版の再確認、
+    3案件でバイト一致）は、`v0.1.1` の実行では **12.0.2 のまま**通った。最後の
+    `setup-node` が tool cache の同じ Node 22.23.1 を選び直したためで、予想どおりの挙動。
+    **つまり「同梱 npm (10.9.x) に戻る」現象自体は、実機ではまだ一度も観測されていない。**
+    ガードが仕事をしたのではなく、ガードが要る状況がまだ起きていない、というのが正確
 - **マージ済みブランチが6本残っている**（`claude/add-contributing` /
   `claude/drop-legacy-template-header` / `claude/readme-editorial` /
   `claude/readme-pre-release` / `claude/rename-to-itaiji-normalize` /

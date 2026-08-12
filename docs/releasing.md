@@ -52,29 +52,42 @@ same Node 22 from the tool cache that the guard upgraded in place. Point the las
 different version and npm silently reverts to the bundled one. If the publish leg's Node version
 ever changes, re-read the version at that point rather than assuming the guard still holds.
 
-### Not yet verified: no release has gone out through OIDC
+### Verified: `0.1.1` went out through OIDC
 
-`0.1.0` was published with a token on 2026-08-10 and this switch came afterwards. Dry runs never
-reach `npm publish`, so nothing short of a real publish can test the token exchange.
+`0.1.0` was published with a token on 2026-08-10 and this switch came afterwards, so the first real
+exercise of the token exchange had to wait for the next version bump — dry runs never reach
+`npm publish`, and re-pushing `v0.1.0` would have been skipped as already on the registry.
 
-**Re-pushing `v0.1.0` will not test it either.** The publish step skips a version that is already on
-the registry — the dry run above printed `itaiji-normalize@0.1.0 is already on npm; skipping.` The
-first real exercise of OIDC is therefore **the next version bump**.
+That bump was **`v0.1.1`, published 2026-08-12** (run `31558135329`), and it went through the OIDC
+path with no npm credential in the job:
 
-**Keep the `NPM_TOKEN` secret until then.** It is unused now, but it is the rollback if the exchange
-fails. Delete it from the repository secrets and from npmjs.com once a release has gone out
-without it.
+```text
+npm notice publish Signed provenance statement with source and build information from GitHub Actions
+npm notice publish Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=2430002951
+```
 
-## One-time setup: the npm token (superseded, kept as rollback)
+The same run also settled the question the table above raises. `npm 12.0.2` was still in place at
+the publish step — the final `setup-node` found Node 22.23.1 in the tool cache, as predicted, so the
+in-place upgrade survived. **The dip back to a bundled npm has therefore still never been observed
+on a real run**; `assert-npm-version.sh` guards a hazard that has not yet fired, which is the point
+of it, but it is not evidence that the hazard is real.
 
-Everything below describes the token path this workflow no longer uses. It is kept because the
-token is still the fallback until trusted publishing has been proven by a real release, and because
-the failure modes it documents are worth keeping.
+**`NPM_TOKEN` is no longer a rollback path** — a release has now gone out without it. Removing it
+from the repository secrets and from npmjs.com is tracked in `NOTES.md`.
 
-**`NPM_TOKEN`** — an Actions secret. Nothing publishes without it, and the workflow fails with an
-explicit message naming the secret rather than letting a later `npm publish` return an opaque 401.
+## The npm token (superseded — kept for the failure modes it documents)
+
+Everything below describes the token path this workflow no longer uses, and no longer needs. It is
+kept because the failure modes are hard-won and still apply to publishing as an account by hand. It
+is **not** a live rollback: re-introducing a token would mean re-introducing a long-lived publish
+credential that trusted publishing has made unnecessary.
+
+**`NPM_TOKEN`** was an Actions secret. Nothing in `release.yml` references it any more, so deleting
+it cannot break a release; what it closes off is falling back to token auth without editing the
+workflow, which is deliberate.
 
 ```sh
+# Historical — this is how it used to be set:
 gh secret set NPM_TOKEN --repo tomatomerde/itaiji-normalize
 ```
 
