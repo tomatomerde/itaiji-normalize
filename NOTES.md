@@ -20,7 +20,8 @@ GitHub はコミットメッセージ中の `#N` を自動リンクするので�
 
 **現在地**: `main` に v0.1.0 相当(旧 PR #1)、旧 PR #2、そして**ラウンド6**
 (旧 PR #3 のレビュー + `pickUnique` 検証 + その対応)がマージ済み。
-**npm 公開済み**: `itaiji-normalize@0.1.0`（2026-08-10、provenance attestation 付き）。
+**npm 公開済み**: `itaiji-normalize@0.1.1`（最新。0.1.0 は 2026-08-10、0.1.1 は
+2026-08-11、いずれも provenance attestation 付き）。
 
 **先に読むべき事故**: PR #2 と PR #3 は**互いを含まない並行ブランチ**で、
 両方が NOTES 上で「ラウンド5」を名乗り、**同じ指摘に別々の解**を出していた
@@ -368,13 +369,8 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
     `setup-node` が tool cache の同じ Node 22.23.1 を選び直したためで、予想どおりの挙動。
     **つまり「同梱 npm (10.9.x) に戻る」現象自体は、実機ではまだ一度も観測されていない。**
     ガードが仕事をしたのではなく、ガードが要る状況がまだ起きていない、というのが正確
-- **マージ済みブランチが6本残っている**（`claude/add-contributing` /
-  `claude/drop-legacy-template-header` / `claude/readme-editorial` /
-  `claude/readme-pre-release` / `claude/rename-to-itaiji-normalize` /
-  `claude/repo-rename-urls`）。2026-08-11 に `git cherry` で6本とも全コミットが
-  main にパッチ等価で入っていることを確認済み。**セッションの資格情報では削除できない**
-  （`git push --delete` が 403）ので人間の操作が要る。再発防止として
-  `gh repo edit tomatomerde/itaiji-normalize --delete-branch-on-merge` を先に入れておくとよい
+- ~~**マージ済みブランチが6本残っている**~~ **完了**（2026-08-12 の実確認で、
+  リモートブランチは `main` のみ）
 ブランチ保護と GitHub の description / topics は 2026-08-10 に設定済み。保護の内容は
 `main` への直 push 禁止、required checks は `test (20)` / `test (22)` / `browser` /
 `workers` / `smoke-node18`、`strict: false`、`enforce_admins: true`、承認0件。
@@ -411,7 +407,8 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
   + gzip): isVariant 286KB / reduce 272KB / toMatchingKey 273KB / 全体 559KB。
   表の「約290/270/271/562KB」と数KB以内で一致しており、表の但し書きの範囲内
 
-構成の指摘に対応した内容は `CHANGELOG.md` の Unreleased 節にある。
+構成の指摘に対応した内容は `0.1.1`（2026-08-11）としてリリース済み——`CHANGELOG.md` の
+`0.1.1` 節を参照。
 
 ## まだ検証していない領域(ラウンド8の候補)
 
