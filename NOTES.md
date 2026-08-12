@@ -355,22 +355,15 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 ### 残っているもの
 
-- **人間の操作待ち: `NPM_TOKEN` を消すこと。** trusted publishing 経由のリリースは
-  **もう出た**——`v0.1.1`（2026-08-12、run `31558135329`）が
-  `Signed provenance statement with source and build information from GitHub Actions` を
-  出して publish されている。戻り先として残す理由が無くなったので、
-  **未使用のまま生きている publish 資格情報**という一番良くない状態になっている。
-  セッションからはシークレットを削除する手段が無いので、人間が2つとも実行すること
-  （Actions secret を先に消す。npm 側だけ先に消すと、動かないシークレットが残る）:
-
-  ```sh
-  gh secret delete NPM_TOKEN --repo tomatomerde/itaiji-normalize
-  ```
-
-  そのうえで <https://www.npmjs.com/settings/~/tokens> でトークン本体を revoke する。
-  **同じトークンが jp-address-romaji と japan-calendar でも使われている**ので、
-  npm 側の revoke は3案件の Actions secret を消してから1回だけ行う。
-  `release.yml` は3案件とも `NPM_TOKEN` を一切参照していないため、消してもリリースは壊れない
+- **`NPM_TOKEN` は削除済み（2026-08-12）。** trusted publishing 経由のリリースが
+  `v0.1.1`（run `31558135329`）で実際に通り——
+  `Signed provenance statement with source and build information from GitHub Actions`
+  がログに出ている——戻り先として残す理由が消えたため。**人間が3案件の Actions secret を
+  消し、npm 側のトークンも revoke したとの報告。** セッションからはシークレット一覧を
+  読めないので、こちらで実物を確認したわけではない（`DEV_STANDARDS_TOKEN` の削除と同じ扱い）。
+  `release.yml` は3案件とも `NPM_TOKEN` を参照していないので、リリースは壊れない。
+  **代わりに、publish は npmjs.com 側の trusted publisher 登録だけに依存する状態になった**——
+  登録を消したり `release.yml` をリネームしたりすると、戻り先が無いのでリリースが止まる
   - 2026-08-11 に足した `scripts/assert-npm-version.sh`（publish 直前の npm 版の再確認、
     3案件でバイト一致）は、`v0.1.1` の実行では **12.0.2 のまま**通った。最後の
     `setup-node` が tool cache の同じ Node 22.23.1 を選び直したためで、予想どおりの挙動。
