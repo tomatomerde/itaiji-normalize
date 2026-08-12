@@ -347,10 +347,9 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 - ~~**ドリフト検査用シークレットの設定**~~ / ~~**ドリフト検査ワークフローの hard fail**~~
   — **どちらも仕組みごと廃止された(2026-08-09)。** 当時は案件ごとに PAT
   (`DEV_STANDARDS_TOKEN`)を持たせて原本を読みに行っていたが、PAT は失効し、失効した1件が
-  実際に別案件の CI を落とした。いまは原本側から配る向きに変わっていて、案件側は
-  `.claude/common.sha256` とのハッシュ照合だけを行う
-  (`.github/workflows/check-common-integrity.yml`)。**シークレットもネットワークも使わない**
-  ので fork からの PR でも動き、失効するものが無い。`DEV_STANDARDS_TOKEN` が
+  実際に別案件の CI を落とした。その後ハッシュ照合による配布方式に置き換わり、さらに
+  **2026-08-12 に配布そのものが廃止された**——CLAUDE.md はプロジェクト技術情報だけになり、
+  照合対象が消えたため `check-common-integrity.yml` ごと撤去。`DEV_STANDARDS_TOKEN` が
   まだ登録されていれば削除してよい
 
 ### 残っているもの
@@ -379,10 +378,10 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 ブランチ保護と GitHub の description / topics は 2026-08-10 に設定済み。保護の内容は
 `main` への直 push 禁止、required checks は `test (20)` / `test (22)` / `browser` /
 `workers` / `smoke-node18`、`strict: false`、`enforce_admins: true`、承認0件。
-**`integrity` は required に入れていない**——`check-common-integrity.yml` は
-`paths:` フィルタ付きで `CLAUDE.md` を触らない PR では起動せず、required にすると
-そういう PR が「Expected — waiting for status」で永久にマージできなくなるため。
-保護を張り直すときはここを再現すること。
+`integrity`（2026-08-12 に撤去済みの `check-common-integrity.yml`）は required に
+入れていなかった——`paths:` フィルタ付きのチェックを required にすると、そのパスを
+触らない PR が「Expected — waiting for status」で永久にマージできなくなるため。
+教訓として残す: 保護を張り直すときも、パスフィルタ付きワークフローを required にしないこと。
 
 ## ラウンド7(PR #5 のレビュー)で残った判断
 

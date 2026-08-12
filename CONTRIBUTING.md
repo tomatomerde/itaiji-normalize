@@ -124,13 +124,6 @@ Before you start, run `git log --oneline --all --graph` and look for parallel br
 branches once claimed the same review round and fixed the same finding in incompatible ways; the
 reconciliation cost more than either fix. `NOTES.md` tells that story near the top.
 
-## The shared block in CLAUDE.md
-
-Everything between `<!-- BEGIN dev-standards common -->` and `<!-- END dev-standards common -->`
-is generated. It is delivered from a template repository through an automated pull request, and
-`.github/workflows/check-common-integrity.yml` fails if it has been hand-edited. If you think a
-rule in there is wrong, say so in an issue — changing it here would be reverted by the next sync.
-
 ## Language
 
 Code comments, JSDoc and error messages are in English. Test descriptions may be Japanese. Both
