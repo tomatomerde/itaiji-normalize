@@ -54,6 +54,29 @@ jobs:
             exit 1;
           }
 
+  dist:
+    # The `test` job's 98 tests all import from `../src/*.js`, so they only ever
+    # prove src/ is correct — the smoke-node18 job below is the only thing that
+    # touches what users actually get (dist/index.js / dist/index.cjs), and it
+    # is five hand-written assertions. Bundler-specific breakage (tree-shaking
+    # dropping a table that source-level tests can't see missing, a wrong
+    # `/* @__PURE__ */` annotation stripping a needed side effect, ESM/CJS
+    # output diverging) can slip through both. vitest.dist.config.ts aliases
+    # only the public-API imports (`../src/index.js` and friends) to the built
+    # artifact, so the same 98 tests run against dist/ instead, in both module
+    # formats.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:dist
+      - run: npm run test:dist:cjs
+
   browser:
     # The package advertises browser support. Until this job existed that
     # rested on "it has no dependencies, so it probably works" — and two
