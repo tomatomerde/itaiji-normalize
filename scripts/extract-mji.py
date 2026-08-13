@@ -3,14 +3,14 @@
 
 Usage: extract-mji.py <xlsx> <out.tsv>
 Columns kept: MJ文字図形名, 対応するUCS, 実装したUCS, 実装したMoji_JohoコレクションIVS,
-実装したSVS, 対応する互換漢字, X0213
+実装したSVS, 対応する互換漢字, X0213, 漢字施策
 """
 import sys, zipfile, re
 import xml.etree.ElementTree as ET
 
 NS = "{http://purl.oclc.org/ooxml/spreadsheetml/main}"
 WANT = ["MJ文字図形名", "対応するUCS", "実装したUCS", "実装したMoji_JohoコレクションIVS",
-        "実装したSVS", "対応する互換漢字", "X0213"]
+        "実装したSVS", "対応する互換漢字", "X0213", "漢字施策"]
 
 xlsx, out = sys.argv[1], sys.argv[2]
 z = zipfile.ZipFile(xlsx)

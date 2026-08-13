@@ -1,5 +1,6 @@
-import { REDUCE_BY_IVS, REDUCE_BY_UCS, type SerializedCandidate } from "./generated/tables.js";
+import { KANJI_POLICY, REDUCE_BY_IVS, REDUCE_BY_UCS, type SerializedCandidate } from "./generated/tables.js";
 import { basisMaskToList } from "./basis.js";
+import { decodeKanjiPolicy, POLICY_JINMEIYO, POLICY_JOYO } from "./kanjiPolicy.js";
 import { ivsKey, readFirstUnit, variationSelectorKind } from "./ivs.js";
 import { requireString } from "./validate.js";
 import type { Candidate, ReduceResult, ResolvedVia } from "./types.js";
@@ -19,13 +20,21 @@ function toCandidates(list: SerializedCandidate[]): Candidate[] {
  * Picks a single representative candidate, or null if none exists or the
  * choice would be arbitrary.
  *
- * Heuristic (documented, not a literal port of any external tool): prefer
- * the candidate with the best (lowest) 法務省告示582号別表第四 priority rank,
- * since that notice's rank field exists specifically to pick a representative
- * form; failing that, prefer the lowest 法務省戸籍法関連通達 hop count, since
- * a smaller hop count means a more direct chain of custody in that record;
- * failing that, there is no ranked evidence to break the tie, and this
- * function returns null rather than picking arbitrarily (e.g. by code point).
+ * Heuristic (documented, not a literal port of any external tool, except
+ * where noted below): prefer the candidate with the best (lowest) 法務省告示
+ * 582号別表第四 priority rank, since that notice's rank field exists
+ * specifically to pick a representative form; failing that, prefer the
+ * lowest 法務省戸籍法関連通達 hop count, since a smaller hop count means a
+ * more direct chain of custody in that record; failing that, prefer a
+ * candidate that is 常用漢字 (the Jōyō kanji list) if exactly one of the tied
+ * candidates is, or a candidate that is 人名用漢字 (broken by lowest JIS水準)
+ * if exactly one of those is — this last tier is the one rule IPA's own
+ * reference implementation (mandel59/mj2jisx0213) applies, so it is used
+ * verbatim rather than invented; failing all of that (including when 2+ tied
+ * candidates share the same 常用漢字/人名用漢字 status), there is no ranked
+ * evidence left to break the tie, and this function returns null rather than
+ * picking arbitrarily (e.g. by code point). See breakPolicyTie for this last
+ * tier's exact rules.
  *
  * MJ prescribes no selection procedure — its guidance is that a caller
  * should judge the real target from the context the character appears in,
@@ -36,17 +45,19 @@ function toCandidates(list: SerializedCandidate[]): Candidate[] {
  * the more common form (e.g. 㓮, where rank gives the rare 雕 and hop gives
  * the everyday 彫).
  *
- * Two properties that follow from the tiers and are easy to misread:
+ * Two properties that follow from the rank/hop tiers and are easy to misread:
  *
- *   - Rank never ties: across all 40,290 table keys there is no key where two
+ *   - Rank never ties: across all 40,295 table keys there is no key where two
  *     candidates share the best 順位, so tier 0 always decides on its own.
- *     Every recorded tie is at the hop tier (234) or the unranked tier (572).
+ *     Every recorded tie is at the hop tier (234) or the unranked tier (572)
+ *     before the 常用漢字/人名用漢字 tier gets a chance to break it.
  *   - JIS包摂規準 evidence carries no rank and no hop, so it lands in the last
- *     tier and never wins. That category usually names the source character
- *     itself — MJ's way of recording "already representable" — which is why
- *     reduce("㐂").unique is 喜 rather than 㐂 (1,246 keys behave that way,
- *     and 47 more keys carrying a self-candidate end in a tie and return
- *     null).
+ *     rank/hop tier and never wins there. That category usually names the
+ *     source character itself — MJ's way of recording "already
+ *     representable" — which is why reduce("㐂").unique is 喜 rather than 㐂
+ *     (1,288 keys behave that way, and 5 more keys carrying a self-candidate
+ *     end in a tie that not even the 常用漢字/人名用漢字 tier resolves, and
+ *     return null).
  *
  * These figures are pinned by test/data-invariants.test.ts ("文書が主張する
  * 統計値") — update them together with a data update, not from memory.
@@ -60,6 +71,46 @@ export interface Selection {
    * whether the tie actually matters — see resolveTie there.
    */
   tied: string[];
+}
+
+/**
+ * Breaks a tie pickBest's rank/hop tiers left unresolved, using 漢字施策
+ * (常用漢字/人名用漢字) — the same tie-break IPA's own reference
+ * implementation (mandel59/mj2jisx0213) applies once its own rank/hop-style
+ * tiers run out. Only ever called with 2+ candidates that already scored
+ * identically on tier and secondary key; returns the winning candidate's hex,
+ * or null if this rule doesn't resolve it either (never a guess: matches the
+ * reference implementation's own refusal to pick between two 常用漢字, or
+ * between two 人名用漢字 tied at the same JIS水準).
+ *
+ * 1. Exactly one tied candidate is 常用漢字 -> it wins.
+ * 2. Two or more are 常用漢字 -> unresolved. The reference implementation
+ *    stops here too rather than inventing a further rule; doing otherwise
+ *    here would be exactly the evidence-free pick this package refuses.
+ * 3. No 常用漢字, but exactly one 人名用漢字 -> it wins.
+ * 4. Two or more 人名用漢字 -> the lowest JIS水準 among them wins, unless
+ *    more than one shares that水準, in which case unresolved.
+ * 5. Neither category present among the tied candidates -> unresolved.
+ */
+function breakPolicyTie(tiedHexes: readonly string[]): string | null {
+  const joyo: string[] = [];
+  const jinmeiyo: Array<{ hex: string; jisLevel: number }> = [];
+  for (const candidateHex of tiedHexes) {
+    const packed = KANJI_POLICY[candidateHex];
+    if (packed === undefined) continue;
+    const { policy, jisLevel } = decodeKanjiPolicy(packed);
+    if (policy === POLICY_JOYO) joyo.push(candidateHex);
+    else if (policy === POLICY_JINMEIYO) jinmeiyo.push({ hex: candidateHex, jisLevel });
+  }
+  if (joyo.length === 1) return joyo[0]!;
+  if (joyo.length >= 2) return null;
+  if (jinmeiyo.length === 1) return jinmeiyo[0]!.hex;
+  if (jinmeiyo.length >= 2) {
+    const minLevel = Math.min(...jinmeiyo.map((j) => j.jisLevel));
+    const atMinLevel = jinmeiyo.filter((j) => j.jisLevel === minLevel);
+    return atMinLevel.length === 1 ? atMinLevel[0]!.hex : null;
+  }
+  return null;
 }
 
 function pickBest(list: SerializedCandidate[]): Selection {
@@ -87,6 +138,10 @@ function pickBest(list: SerializedCandidate[]): Selection {
   const best = scored[0]!;
   const tiedWithBest = scored.filter((s) => s.tier === best.tier && s.secondary === best.secondary);
   if (tiedWithBest.length > 1) {
+    const policyWinnerHex = breakPolicyTie(tiedWithBest.map((s) => s.candidate[0]));
+    if (policyWinnerHex !== null) {
+      return { unique: String.fromCodePoint(Number.parseInt(policyWinnerHex, 16)), tied: [] };
+    }
     return {
       unique: null,
       tied: tiedWithBest.map((s) => String.fromCodePoint(Number.parseInt(s.candidate[0], 16))),

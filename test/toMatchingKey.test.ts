@@ -76,27 +76,42 @@ describe("toMatchingKey", () => {
   });
 
   it("拮抗した候補が別々の終着点に至る場合は ambiguous として載る", () => {
-    // 㡣(U+3863)の候補 竜 と 龍 は互いに縮退せず、それぞれ別の不動点に至る。
+    // 朢(U+6722)の候補 望 と 聖 は互いに縮退せず、それぞれ別の不動点に至る。
+    // どちらも常用漢字なので常用漢字/人名用漢字タイブレークも決めない
+    // (2つ以上あれば決めないのがそのタイブレーク自身の規則)。
     // どちらを選ぶかは根拠のない当て推量になるので解決しない。
-    const result = toMatchingKey("㡣");
+    const result = toMatchingKey("朢");
     expect(result.unresolved).toHaveLength(1);
     expect(result.unresolved[0]!.reason).toBe("ambiguous");
     // 未解決時は原文の文字がそのままキーに残る(黙って何かに変換しない)
-    expect(result.key).toBe("㡣");
+    expect(result.key).toBe("朢");
   });
 
-  it("拮抗しても全分岐が同じ不動点に収束するなら解決する(渡邉 が 渡辺 と一致する)", () => {
-    // 邉 の候補 辺 と 邊 は同点だが、邊 自身も 辺 に縮退するため、
-    // どちらの枝をたどっても行き着く先は 辺 で変わらない。これは当て推量ではなく
-    // 「選択が結果を変えないことの証明」なので解決してよい。
+  it("渡辺・渡邊・渡邉 はすべて同じキーに一致する", () => {
+    // 邉 の候補 辺 と 邊 は rank/hop の根拠では同点だが、辺 が常用漢字で
+    // 邊 がそうではないため、常用漢字/人名用漢字タイブレークで reduce()
+    // 自体が直接 辺 に決める(以前はここが null で、下の
+    // 「拮抗しても全分岐が同じ不動点に収束するなら解決する」の仕組みに
+    // 頼っていた — そちらは今も別の文字で機能する。次のテスト参照)。
     // 修正前は 渡邊 だけが 渡辺 と一致し 渡邉 は一致しないという、
     // どちらか一方に倒すより悪い状態だった。
-    expect(reduce("邉").unique).toBeNull(); // reduce() 自体は1段階なので依然 null
+    expect(reduce("邉").unique).toBe("辺");
     expect(toMatchingKey("邉").key).toBe("辺");
     expect(toMatchingKey("邉").unresolved).toEqual([]);
     const keys = ["渡辺", "渡邊", "渡邉"].map((n) => toMatchingKey(n).key);
     expect(new Set(keys).size).toBe(1);
     expect(keys[0]).toBe("渡辺");
+  });
+
+  it("拮抗しても全分岐が同じ不動点に収束するなら解決する", () => {
+    // 覛(U+899B)の候補 覓 と 覔 は常用漢字/人名用漢字タイブレークでも
+    // 決まらない(どちらも施策の対象外)ため reduce() は null を返すが、
+    // 覔 自身も 覓 に縮退するため、どちらの枝をたどっても行き着く先は
+    // 覓 で変わらない。これは当て推量ではなく「選択が結果を変えないことの
+    // 証明」なので toMatchingKey は解決してよい。
+    expect(reduce("覛").unique).toBeNull(); // reduce() 自体は1段階なので依然 null
+    expect(toMatchingKey("覛").key).toBe("覓");
+    expect(toMatchingKey("覛").unresolved).toEqual([]);
   });
 
   it("既定(NFKC)は CJK互換漢字を統合漢字に正規化する", () => {

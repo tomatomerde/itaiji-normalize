@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.tgz
 .DS_Store
+# Scratch worktrees some tooling creates inside the repo. Each one is a full
+# second checkout, so committing it would nest the repository inside itself.
+.claude/worktrees/

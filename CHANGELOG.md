@@ -3,6 +3,60 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.3 — 2026-08-13
+
+### Added
+
+- `reduce().unique` now breaks a remaining rank/hop tie by 常用漢字
+  (Jōyō kanji), then by 人名用漢字 (JIS水準 as the final tiebreak) — the same
+  rule IPA's own reference implementation (`mandel59/mj2jisx0213`) applies
+  once its own tiers run out, used verbatim rather than invented, and backed
+  by a new 2,999-entry `KANJI_POLICY` table (2,136 常用漢字, 863 人名用漢字).
+  Previously any tie that survived the rank/hop tiers returned `null`
+  outright, even when the data plainly favored one candidate by a
+  well-established government policy list. Of the 806 table keys where
+  rank and hop leave a tie, this resolves 502 of them; `toMatchingKey`'s
+  `"ambiguous"` count for those keys drops from 463 to 249 as a result (557
+  now resolve). **No existing answer changed**: measured across the full
+  40,295-key domain, `toMatchingKey` produced zero different answers and
+  zero newly-unresolved keys against 0.1.2 — this tier only fills in
+  previously-`null` results (245 new `toMatchingKey` resolutions, 504 new
+  non-null `reduce().unique` values), it never overrides one.
+
+### Fixed
+
+- 付記=別字 exclusion was dropping candidates from categories the reference
+  implementation never touches. 0.1.0 through 0.1.2 stripped a
+  付記=別字-annotated character out of *every* evidence category it appeared
+  in, but the reference implementation only rejects it from three
+  categories — family register notices, MOJ Notice 582 Appendix 4, and
+  general dictionaries — leaving JIS包摂規準・UCS統合規則 candidates alone.
+  The over-broad exclusion silently deleted 5 legitimate candidates: 宮 from
+  宫's candidate list, 亮 and 紀 and 記 from their respective IVS-qualified
+  lookups, and 荒 from 𮎰. `reduce("宫").unique` is still 共, unchanged by
+  this fix — the restored 宮 carries only JIS包摂規準 evidence (no rank, no
+  hop), so it lands in the lowest tier and loses to 共, which does carry a
+  MOJ Notice 582 rank. That's a separate, still-open question about tier
+  design, not something this fix resolves.
+
+### Changed
+
+- Bundle size grew by about 8 KB gzipped for the entry points that reach the
+  new `KANJI_POLICY` table. Measured with one command and one esbuild version
+  against 0.1.2's published `dist/` and this one, so the two columns are
+  comparable: `reduce` 273 → 281 KB, `toMatchingKey` 273 → 282 KB, the whole
+  API 560 → 568 KB (bundling both functions shares one copy of the table
+  rather than paying twice), and `isVariant`, which never touches that table,
+  287 → 287 KB. These absolute figures differ by a few KB from the ones 0.1.1
+  published because that table was measured with a different esbuild version;
+  the README's table is now internally consistent, and the measurement method
+  is stated next to it under "Known limitations".
+- Data scale: 30,345 source characters (was 30,344) and 9,950
+  variation-sequence keys (was 9,946) — 40,295 table keys in total — after
+  the 付記=別字 fix above restored candidates the exclusion had wrongly
+  removed. The variant graph now has 30,653 edges (3,000 inferred), up from
+  30,650 (2,999 inferred).
+
 ## 0.1.2 — 2026-08-13
 
 ### Fixed

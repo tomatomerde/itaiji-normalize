@@ -1,9 +1,15 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { REDUCE_BY_IVS, REDUCE_BY_UCS, VARIANT_ADJACENCY } from "../src/generated/tables.js";
+import { KANJI_POLICY, REDUCE_BY_IVS, REDUCE_BY_UCS, VARIANT_ADJACENCY } from "../src/generated/tables.js";
 import { isCjkIdeograph } from "../src/cjk.js";
 import { isVariant } from "../src/isVariant.js";
+import { decodeKanjiPolicy, POLICY_JINMEIYO, POLICY_JOYO } from "../src/kanjiPolicy.js";
 import { reduce } from "../src/reduce.js";
 import { toMatchingKey } from "../src/toMatchingKey.js";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // Assumptions the runtime code relies on that are properties of the shipped
 // data rather than of the code. Each was verified by hand against the current
@@ -60,6 +66,62 @@ describe("生成データが満たすべき不変条件", () => {
       expect(reduce(src).unique, `${src} の unique`).not.toBe(different);
       expect(toMatchingKey(src).key, `${src} のキー`).not.toBe(different);
     }
+  });
+
+  it("別字の除外は JIS包摂規準・UCS統合規則の候補には及ばない", () => {
+    // mandel59/mj2jisx0213 の MJ2JISX0213.es は、JIS包摂規準・UCS統合規則が
+    // あればそれで確定して return する(191-203行目)。付記=別字 を全カテゴリ
+    // から除外する処理(2.1, 209-228行目)はその戸籍法関連通達の分岐の中に
+    // あり、JIS包摂規準・UCS統合規則が存在する時点でそこには到達しない。
+    // つまり JIS包摂規準・UCS統合規則の候補は、その MJ 字形が別字リストに
+    // 何を挙げていようと一切対象外——この5件は、かつて(0.1.0-0.1.2)全カテ
+    // ゴリから除外していたせいで消えていた候補。
+    const REVIVED: ReadonlyArray<{ label: string; input: string; expected: string }> = [
+      { label: "MJ006478 亮+IVS(E0102)", input: `亮${String.fromCodePoint(0xe0102)}`, expected: "亮" },
+      { label: "MJ010148 宫(U+5BAB)", input: "宫", expected: "宮" },
+      { label: "MJ019956 紀+IVS(E0102)", input: `紀${String.fromCodePoint(0xe0102)}`, expected: "紀" },
+      { label: "MJ024358 記+IVS(E0102)", input: `記${String.fromCodePoint(0xe0102)}`, expected: "記" },
+      { label: "MJ058447 𮎰(U+2E3B0)", input: String.fromCodePoint(0x2e3b0), expected: "荒" },
+      {
+        label: "MJ058447 𮎰+IVS(E0100)",
+        input: String.fromCodePoint(0x2e3b0) + String.fromCodePoint(0xe0100),
+        expected: "荒",
+      },
+    ];
+    for (const { label, input, expected } of REVIVED) {
+      const r = reduce(input);
+      const hit = r.candidates.find((c) => c.char === expected);
+      expect(hit, `${label}: ${expected} が候補に含まれる`).toBeTruthy();
+      expect(hit!.basis, `${label}: ${expected} の根拠に jis-inclusion-rule が含まれる`).toContain(
+        "jis-inclusion-rule",
+      );
+    }
+
+    // このうち4件は JIS包摂規準・UCS統合規則が唯一の候補になるので、
+    // unique/toMatchingKey もその値まで解決する。
+    for (const { label, input, expected } of REVIVED) {
+      if (label === "MJ010148 宫(U+5BAB)") continue; // 下の別テストで扱う
+      expect(reduce(input).unique, `${label} の unique`).toBe(expected);
+      expect(toMatchingKey(input).key, `${label} のキー`).toBe(expected);
+    }
+  });
+
+  it("宫(U+5BAB) は 宮(U+5BAE) を候補として取り戻すが、unique は共(U+5171)のまま残る", () => {
+    // 宫 だけは 法務省告示582号別表第四 に第2順位(共)も記録されているため、
+    // 「候補が復活する」ことと「unique がそれに変わる」ことは別問題になる。
+    // 宮(順位1位)は別字除外で告示582側の順位情報を失って jis-inclusion-rule
+    // だけの tier2 候補になり、tier0(順位あり)の共に pickBest で負ける
+    // (src/reduce.ts の tier 規則: JIS包摂規準は順位もホップ数も持たない
+    // ので必ず最後の tier)。すなわち、この修正が直すのは「候補一覧から
+    // 宮が消えていた」ことであり、「unique が無関係な共に畳まれる」こと
+    // そのものではない――同じ根の問題ではあるが、pickBest の tier 設計
+    // (1,246 件の自己候補と共通のルール)まで変えないと解消しない、別の
+    // 論点として残っている。
+    const r = reduce("宫");
+    expect(r.candidates.map((c) => c.char).sort()).toEqual(["共", "宮"]);
+    expect(r.candidates.find((c) => c.char === "宮")!.basis).toEqual(["jis-inclusion-rule"]);
+    expect(r.unique).toBe("共");
+    expect(toMatchingKey("宫").key).toBe("共");
   });
 
   it("REDUCE_BY_UCS の全キーが CJK 漢字の範囲に入る", () => {
@@ -119,6 +181,77 @@ describe("生成データが満たすべき不変条件", () => {
   });
 });
 
+// 漢字施策(常用漢字/人名用漢字)まわりの不変条件。KANJI_POLICY(生成テーブル)
+// を信用せず、data/generated/mji-list.tsv を素朴にパースし直して独立に検証する
+// — build-tables.ts のパース自体にバグがあっても引っかかるように。
+describe("漢字施策データが満たすべき不変条件", () => {
+  const MJI_LIST_PATH = path.join(REPO_ROOT, "data/generated/mji-list.tsv");
+  const lines = readFileSync(MJI_LIST_PATH, "utf8").split("\n");
+  const header = lines.shift()!.split("\t");
+  const col = Object.fromEntries(header.map((h, i) => [h, i]));
+
+  it("漢字施策列の値は空/常用漢字/人名用漢字の3種類しかない", () => {
+    const seen = new Set<string>();
+    for (const line of lines) {
+      if (!line) continue;
+      seen.add(line.split("\t")[col["漢字施策"]!] ?? "");
+    }
+    expect(seen).toEqual(new Set(["", "常用漢字", "人名用漢字"]));
+  });
+
+  it("常用漢字 2,136行・人名用漢字 863行(実装したUCS を持つ行に対して)", () => {
+    // build-tables.ts が 実装したUCS をキーに使う根拠(コメント参照)に合わせ、
+    // ここでも同じ列で数える。
+    let joyoRows = 0,
+      jinmeiyoRows = 0;
+    for (const line of lines) {
+      if (!line) continue;
+      const cells = line.split("\t");
+      const policy = cells[col["漢字施策"]!] ?? "";
+      if (policy === "常用漢字") joyoRows++;
+      else if (policy === "人名用漢字") jinmeiyoRows++;
+    }
+    expect(joyoRows).toBe(2_136);
+    expect(jinmeiyoRows).toBe(863);
+  });
+
+  it("実装したUCS で集約しても、同一UCSに矛盾する漢字施策/JIS水準の値がつかない", () => {
+    const byUcs = new Map<string, { policy: string; x0213: string }>();
+    const conflicts: string[] = [];
+    for (const line of lines) {
+      if (!line) continue;
+      const cells = line.split("\t");
+      const policy = cells[col["漢字施策"]!] ?? "";
+      if (!policy) continue;
+      const ucs = cells[col["実装したUCS"]!] ?? "";
+      const x0213 = cells[col["X0213"]!] ?? "";
+      const existing = byUcs.get(ucs);
+      if (existing) {
+        if (existing.policy !== policy || existing.x0213 !== x0213) conflicts.push(ucs);
+      } else {
+        byUcs.set(ucs, { policy, x0213 });
+      }
+    }
+    expect(conflicts).toEqual([]);
+    // 2,999 UCS = 2,136(常用漢字)+ 863(人名用漢字)、重複UCSも矛盾も無いので単純合算になる
+    expect(byUcs.size).toBe(2_999);
+  });
+
+  it("生成テーブル KANJI_POLICY は独立パースの集計と同じ 2,999 件、常用/人名用の内訳も一致する", () => {
+    let joyo = 0,
+      jinmeiyo = 0;
+    for (const packed of Object.values(KANJI_POLICY)) {
+      const { policy } = decodeKanjiPolicy(packed);
+      expect([POLICY_JOYO, POLICY_JINMEIYO]).toContain(policy);
+      if (policy === POLICY_JOYO) joyo++;
+      else jinmeiyo++;
+    }
+    expect(Object.keys(KANJI_POLICY).length).toBe(2_999);
+    expect(joyo).toBe(2_136);
+    expect(jinmeiyo).toBe(863);
+  });
+});
+
 // README(英日)と src/reduce.ts / src/toMatchingKey.ts の JSDoc が挙げている
 // 統計値。0.1.0/0.1.1 の README は、ラウンド6の別字修正**前**のテーブルで実測
 // した値(40,368キー、拮抗898字、1,277字、54字、251字)を、修正後のテーブルと
@@ -158,12 +291,37 @@ describe("文書が主張する統計値", () => {
     return tied.length > 1 ? { tier: best.tier, hexes: tied.map((x) => x.hex) } : null;
   }
 
-  it("テーブルキーは 30,344(文字)+ 9,946(変異シーケンス)= 40,290", () => {
-    expect(Object.keys(REDUCE_BY_UCS).length).toBe(30_344);
-    expect(Object.keys(REDUCE_BY_IVS).length).toBe(9_946);
+  // breakPolicyTie (src/reduce.ts) の独立な再実装。KANJI_POLICY の生の中身
+  // (packed int)を own で decode し、src/kanjiPolicy.ts の decodeKanjiPolicy
+  // は使わない — デコード自体にバグがあっても引っかかるように。
+  function policyBreak(tiedHexes: readonly string[]): string | null {
+    const joyo: string[] = [];
+    const jinmeiyo: Array<{ hex: string; jisLevel: number }> = [];
+    for (const h of tiedHexes) {
+      const packed = KANJI_POLICY[h];
+      if (packed === undefined) continue;
+      const policy = packed >> 3;
+      const jisLevel = packed & 0b111;
+      if (policy === 1) joyo.push(h);
+      else if (policy === 2) jinmeiyo.push({ hex: h, jisLevel });
+    }
+    if (joyo.length === 1) return joyo[0]!;
+    if (joyo.length >= 2) return null;
+    if (jinmeiyo.length === 1) return jinmeiyo[0]!.hex;
+    if (jinmeiyo.length >= 2) {
+      const minLevel = Math.min(...jinmeiyo.map((j) => j.jisLevel));
+      const atMinLevel = jinmeiyo.filter((j) => j.jisLevel === minLevel);
+      return atMinLevel.length === 1 ? atMinLevel[0]!.hex : null;
+    }
+    return null;
+  }
+
+  it("テーブルキーは 30,345(文字)+ 9,950(変異シーケンス)= 40,295", () => {
+    expect(Object.keys(REDUCE_BY_UCS).length).toBe(30_345);
+    expect(Object.keys(REDUCE_BY_IVS).length).toBe(9_950);
   });
 
-  it("異体字グラフは 30,650 エッジ、うち推論エッジ 2,999", () => {
+  it("異体字グラフは 30,653 エッジ、うち推論エッジ 3,000", () => {
     const seen = new Map<string, number>();
     for (const [src, neighbors] of Object.entries(VARIANT_ADJACENCY)) {
       for (const [dst, , direct] of neighbors) {
@@ -173,8 +331,8 @@ describe("文書が主張する統計値", () => {
         else seen.set(key, direct);
       }
     }
-    expect(seen.size).toBe(30_650);
-    expect([...seen.values()].filter((d) => d === 0).length).toBe(2_999);
+    expect(seen.size).toBe(30_653);
+    expect([...seen.values()].filter((d) => d === 0).length).toBe(3_000);
   });
 
   it("順位(告示582)は決してタイを作らない。タイはホップ tier に 234、無順位 tier に 572", () => {
@@ -193,7 +351,20 @@ describe("文書が主張する統計値", () => {
     expect(unrankedTies).toBe(572);
   });
 
-  it("拮抗する 806 キーのうち、toMatchingKey(既定 NFKC)は 343 を解決し 463 が ambiguous のまま", () => {
+  it("拮抗する 806 キーのうち、常用漢字/人名用漢字タイブレークで 502 が新たに一意に決まる", () => {
+    let tied = 0,
+      policyResolved = 0;
+    for (const list of [...Object.values(REDUCE_BY_UCS), ...Object.values(REDUCE_BY_IVS)]) {
+      const tie = bestTie(list);
+      if (tie === null) continue;
+      tied++;
+      if (policyBreak(tie.hexes) !== null) policyResolved++;
+    }
+    expect(tied).toBe(806);
+    expect(policyResolved).toBe(502);
+  });
+
+  it("拮抗する 806 キーのうち、toMatchingKey(既定 NFKC)は 557 を解決し 249 が ambiguous のまま", () => {
     let resolved = 0,
       ambiguous = 0;
     const others: string[] = [];
@@ -217,21 +388,30 @@ describe("文書が主張する統計値", () => {
     // 拮抗キーの未解決理由は必ず "ambiguous"(cycle 等に化けない)
     expect(others).toEqual([]);
     expect(resolved + ambiguous).toBe(806);
-    expect(resolved).toBe(343);
-    expect(ambiguous).toBe(463);
+    expect(resolved).toBe(557);
+    expect(ambiguous).toBe(249);
   });
 
-  it("自己候補(JIS包摂の「既に表現可能」)を持つ 1,246 キーが別字に畳まれ、47 キーが拮抗で null", () => {
+  it("自己候補(JIS包摂の「既に表現可能」)を持つ 1,288 キーが別字に畳まれ、5 キーが拮抗で null", () => {
+    // 常用漢字/人名用漢字タイブレークを追加する前は 1,246 / 47 だった。
+    // 追加後は、以前タイブレークで null になっていた自己候補キーの一部が
+    // 常用漢字/人名用漢字を根拠に畳まれるようになったので折れ数が増え、
+    // 拮抗のまま残る数はそのぶん減っている。
     let folds = 0,
       ties = 0;
     for (const [key, list] of Object.entries(REDUCE_BY_UCS)) {
       if (!list.some(([hex]) => hex === key) || list.length < 2) continue;
       const tie = bestTie(list);
-      if (tie !== null) ties++;
-      else if (tiersOf(list)[0]!.hex !== key) folds++;
+      if (tie === null) {
+        if (tiersOf(list)[0]!.hex !== key) folds++;
+        continue;
+      }
+      const policyWinner = policyBreak(tie.hexes);
+      if (policyWinner === null) ties++;
+      else if (policyWinner !== key) folds++;
     }
-    expect(folds).toBe(1_246);
-    expect(ties).toBe(47);
+    expect(folds).toBe(1_288);
+    expect(ties).toBe(5);
   });
 
   it("順位優先とホップ優先は 248 キーで別の勝者を選ぶ(例: 㓮 は 順位→雕 / ホップ→彫)", () => {

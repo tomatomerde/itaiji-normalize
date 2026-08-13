@@ -55,6 +55,45 @@ function parseRank(s: string): number | null {
   return m ? Number.parseInt(m[1]!, 10) : null;
 }
 
+// --- 漢字施策 (常用漢字/人名用漢字) + JIS水準, for reduce()'s tie-break -----
+//
+// Same rule mandel59/mj2jisx0213 (IPA's own reference implementation) uses to
+// break ties its rank/hop tiers leave open: prefer a 常用漢字; failing that
+// (or if 2+ tie), prefer a 人名用漢字, breaking a further tie by lowest JIS
+// 水準. See src/reduce.ts for where this is consumed.
+const POLICY_JOYO = 1; // 常用漢字
+const POLICY_JINMEIYO = 2; // 人名用漢字
+const POLICY_CODE: Record<string, number> = {
+  常用漢字: POLICY_JOYO,
+  人名用漢字: POLICY_JINMEIYO,
+};
+
+/**
+ * X0213 面-区-点 (e.g. "1-16-01") -> JIS水準, per mandel59/mj2jisx0213's
+ * unique-map.sql: 水準1 = 1-16-01〜1-47-51, 水準2 = 1-48-01〜1-84-06,
+ * 水準3 = それ以外の1面 (symbol/kana rows and the 2004 additions at
+ * 1-85〜1-94), 水準4 = 2面.
+ */
+function jisLevelOf(x0213: string): number {
+  const m = /^(\d+)-(\d+)-(\d+)$/.exec(x0213);
+  if (!m) throw new Error(`unrecognized X0213 men-ku-ten: ${JSON.stringify(x0213)}`);
+  const men = Number.parseInt(m[1]!, 10);
+  const ku = Number.parseInt(m[2]!, 10);
+  const ten = Number.parseInt(m[3]!, 10);
+  if (men === 2) return 4;
+  const point = ku * 100 + ten;
+  if (point >= 1601 && point <= 4751) return 1;
+  if (point >= 4801 && point <= 8406) return 2;
+  return 3;
+}
+
+// Packs {policy, jisLevel} into one small int: policy occupies the high
+// bits, level the low 3 (level is 1-4, so 3 bits is enough with room to
+// spare). Decoded by src/kanjiPolicy.ts, which must stay in sync with this.
+function packPolicy(policyCode: number, jisLevel: number): number {
+  return (policyCode << 3) | jisLevel;
+}
+
 // --- 1. Load MJ glyph name -> UCS / IVS / SVS from the extracted list ------
 //
 // IMPORTANT: keyed identity must come from 実装したUCS ("implemented UCS" —
@@ -98,6 +137,11 @@ const mjiLines = readFileSync(MJI_LIST_PATH, "utf8").split("\n");
 const header = mjiLines.shift()!.split("\t");
 const col = Object.fromEntries(header.map((h, i) => [h, i]));
 const mjIdentity = new Map<string, MjIdentity>();
+// 実装したUCS (as a code point) -> packed {policy, jisLevel}, for the ~3k
+// UCS that 漢字施策 marks as 常用漢字/人名用漢字. Keyed the same way as
+// mjIdentity.ucs above (実装したUCS, not 対応するUCS) since 漢字施策 is a
+// property of this specific glyph's row, not of a looser reference UCS.
+const kanjiPolicyByUcs = new Map<number, number>();
 let danglingNoUcsNoVariant = 0;
 for (const line of mjiLines) {
   if (!line) continue;
@@ -113,6 +157,27 @@ for (const line of mjiLines) {
     ucs: ucsCell ? parseUcs(ucsCell) : null,
     variationKeys,
   });
+
+  const policyCell = cells[col["漢字施策"]!] ?? "";
+  if (policyCell) {
+    const policyCode = POLICY_CODE[policyCell];
+    if (!policyCode) throw new Error(`unrecognized 漢字施策 value: ${JSON.stringify(policyCell)}`);
+    if (!ucsCell) throw new Error(`${name}: 漢字施策=${policyCell} but no 実装したUCS to attach it to`);
+    const x0213Cell = cells[col["X0213"]!] ?? "";
+    if (!x0213Cell) throw new Error(`${name}: 漢字施策=${policyCell} but no X0213 to derive a JIS水準 from`);
+    const packed = packPolicy(policyCode, jisLevelOf(x0213Cell));
+    const ucs = parseUcs(ucsCell);
+    const existing = kanjiPolicyByUcs.get(ucs);
+    if (existing !== undefined && existing !== packed) {
+      // Verified against the current snapshot: 0 UCS carry contradictory
+      // 漢字施策/X0213 values across the MJ rows that share them. If a future
+      // data update introduces one, fail loudly rather than pick silently.
+      throw new Error(
+        `conflicting 漢字施策/JIS水準 for U+${ucs.toString(16).toUpperCase()}: ${existing} vs ${packed} (from ${name})`,
+      );
+    }
+    kanjiPolicyByUcs.set(ucs, packed);
+  }
 }
 
 // --- 2. Load the shrink map and collect, per MJ entry, candidate targets ---
@@ -148,14 +213,39 @@ const mjCandidates = new Map<string, Map<number, CandidateDetail>>();
  * 付記 = 別字 — "a different character".
  *
  * That annotation is the notice saying the two are NOT the same character, so
- * the target must not become a shrink candidate. IPA's own reference program
- * (mandel59/mj2jisx0213, MJ2JISX0213.es step 2.1) drops such a UCS from every
- * category of the entry, not just from the notice's own list, and this
- * follows that: 㐲's entry lists 伏 under both the family-register notice and
- * elsewhere, so filtering one list would leave the pair intact through the
- * other. Skipping this filter folded 96 characters onto the very character
- * the notice distinguishes them from (㐲→伏, 㕍→雁, 㬌→景, 䇦→英).
+ * the target must not become a shrink candidate — but only within the three
+ * lists IPA's own reference program actually filters it out of. In
+ * mandel59/mj2jisx0213, MJ2JISX0213.es (see /workspace/mandel59/mj2jisx0213/
+ * MJ2JISX0213.es):
+ *
+ *   - Step "1. JIS包摂・UCS統合規則" (lines 191-203) returns immediately when
+ *     `JIS包摂規準・UCS統合規則` is present, using its first entry outright.
+ *     Step "2.1 別字とされるものの除外" (line 209 onward, inside the
+ *     `法務省戸籍法関連通達・通知` branch) is never even reached in that case,
+ *     so a 付記=別字 UCS never gets the chance to knock out a JIS包摂 candidate.
+ *   - When step 2.1 does run, it `us.reject`s the 別字 UCS from exactly three
+ *     lists (lines 222-227): `法務省戸籍法関連通達・通知` (the list the 付記
+ *     itself came from), `法務省告示582号別表第四`, and `辞書類等による関連字`.
+ *     `JIS包摂規準・UCS統合規則` and `読み・字形による類推` are not touched —
+ *     the loop simply never mentions them.
+ *
+ * This follows that exactly: excluding from only those three categories. 㐲's
+ * entry lists 伏 under both the family-register notice and elsewhere, so
+ * filtering only the notice's own list would leave the pair intact through
+ * the other; excluding from all three still catches it. Skipping this filter
+ * entirely folded 96 characters onto the very character the notice
+ * distinguishes them from (㐲→伏, 㕍→雁, 㬌→景, 䇦→英) — but excluding it from
+ * JIS包摂規準・UCS統合規則 too (as an earlier version of this script did) went
+ * too far the other way: it stripped 宮 (U+5BAE) as a candidate for 宫
+ * (U+5BAB), which JIS包摂規準・UCS統合規則 records as the same character, and
+ * left 宫 folding onto the unrelated 共 (MOJ Notice 582's rank-2 pick) instead.
  */
+const CATEGORIES_SUBJECT_TO_DIFFERENT_CHARACTER_EXCLUSION = new Set<(typeof CATEGORIES)[number]>([
+  "法務省戸籍法関連通達・通知",
+  "法務省告示582号別表第四",
+  "辞書類等による関連字",
+]);
+
 function differentCharacterTargets(entry: Record<string, unknown>): Set<number> {
   const out = new Set<number>();
   const items = entry["法務省戸籍法関連通達・通知"] as Array<Record<string, string>> | undefined;
@@ -175,11 +265,12 @@ for (const entry of shrinkMap.content) {
     const items = entry[cat] as Array<Record<string, string>> | undefined;
     if (!items) continue;
     const bit = CATEGORY_BIT[cat];
+    const catSubjectToExclusion = CATEGORIES_SUBJECT_TO_DIFFERENT_CHARACTER_EXCLUSION.has(cat);
     for (const item of items) {
       const ucsStr = item["UCS"];
       if (!ucsStr) continue;
       const targetCp = parseUcs(ucsStr);
-      if (excluded.has(targetCp)) {
+      if (catSubjectToExclusion && excluded.has(targetCp)) {
         differentCharacterCandidatesDropped++;
         continue;
       }
@@ -324,6 +415,16 @@ const serializedReduceByUcs = serializeReduceTable(reduceByUcs);
 const serializedReduceByIvs = serializeReduceTable(reduceByIvs);
 const serializedAdjacency = serializeAdjacency(adjacency);
 
+function serializeKanjiPolicy(table: Map<number, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [ucs, packed] of [...table.entries()].sort((a, b) => a[0] - b[0])) {
+    out[hex(ucs)] = packed;
+  }
+  return out;
+}
+
+const serializedKanjiPolicy = serializeKanjiPolicy(kanjiPolicyByUcs);
+
 // JSON's only characters that are special inside a single-quoted JS string
 // literal are backslash and single-quote; neither appears in our alphabet
 // (hex digits, digits, ",", ":", "[", "]", "{", "}", "u", "l", "n"). Escaping
@@ -337,6 +438,7 @@ function toSingleQuotedJsLiteral(json: string): string {
 const reduceByUcsJson = JSON.stringify(serializedReduceByUcs);
 const reduceByIvsJson = JSON.stringify(serializedReduceByIvs);
 const adjacencyJson = JSON.stringify(serializedAdjacency);
+const kanjiPolicyJson = JSON.stringify(serializedKanjiPolicy);
 
 const banner = `/**
  * GENERATED FILE. Do not edit by hand.
@@ -367,6 +469,17 @@ export const REDUCE_BY_IVS: Record<string, SerializedCandidate[]> = /* @__PURE__
 // direct is 1 when an authority recorded this pair itself, 0 when the edge is
 // inferred from both characters being candidates of one MJ glyph.
 export const VARIANT_ADJACENCY: Record<string, [string, number, number][]> = /* @__PURE__ */ JSON.parse(${toSingleQuotedJsLiteral(adjacencyJson)});
+
+// UCS code point (hex) -> packed 漢字施策/JIS水準, for the ~3k characters
+// 漢字施策 marks as 常用漢字 or 人名用漢字 (of the 40,290 table keys above,
+// most carry no policy at all and are simply absent here). A separate table
+// rather than a 5th candidate-tuple element on purpose: the candidate tables
+// have tens of thousands of entries and this doesn't, so folding it in would
+// pay its cost on every candidate instead of on the ~3k characters that
+// actually have a policy. Decode with src/kanjiPolicy.ts, which must be kept
+// in sync with the packing scripts/build-tables.ts uses (policy in the high
+// bits, 1-4 JIS水準 in the low 3).
+export const KANJI_POLICY: Record<string, number> = /* @__PURE__ */ JSON.parse(${toSingleQuotedJsLiteral(kanjiPolicyJson)});
 `;
 
 writeFileSync(OUT_PATH, out);
@@ -376,6 +489,11 @@ console.log(`Wrote ${OUT_PATH} (${(rawBytes / 1024).toFixed(0)}KB raw)`);
 console.log(`REDUCE_BY_UCS keys: ${Object.keys(serializedReduceByUcs).length}`);
 console.log(`REDUCE_BY_IVS keys (IVS + SVS): ${Object.keys(serializedReduceByIvs).length}`);
 console.log(`VARIANT_ADJACENCY keys: ${Object.keys(serializedAdjacency).length}`);
+console.log(
+  `KANJI_POLICY keys: ${Object.keys(serializedKanjiPolicy).length} ` +
+    `(常用漢字 ${[...kanjiPolicyByUcs.values()].filter((p) => (p >> 3) === POLICY_JOYO).length}, ` +
+    `人名用漢字 ${[...kanjiPolicyByUcs.values()].filter((p) => (p >> 3) === POLICY_JINMEIYO).length})`,
+);
 console.log(`candidates dropped as 付記=別字 (a different character): ${differentCharacterCandidatesDropped}`);
 const malformedKeys = Object.keys(serializedReduceByIvs).filter((k) => !/^[0-9a-f]+_[0-9a-f]+$/.test(k));
 if (malformedKeys.length > 0) {

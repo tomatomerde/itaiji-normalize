@@ -44,14 +44,14 @@ describe("reduce", () => {
     expect(COMPAT_UME).not.toBe(UNIFIED_UME);
   });
 
-  it("邉 は複数候補(辺・邊)が拮抗し、勝手に一意化せず unique=null を返す", () => {
-    // 邊/邉/辺 クラスタのうち、邉 は根拠が拮抗する実例。「曖昧さを隠さない」
-    // 設計の直接的な検証。邊・辺 はそれぞれ辺・邊自身に一意に解決するが、
-    // 邉 は 辺・邊 の両方が同格の根拠(family-register-notice)を持つため
-    // 一意選択が恣意的になり null を返す。conditional にせず必ず要求する。
+  it("邉 は 辺・邊 が同格の根拠で拮抗するが、辺 が常用漢字であるため一意に決まる", () => {
+    // 邊/邉/辺 クラスタのうち、邉 は rank/hop の根拠だけでは決まらない実例
+    // (辺・邊 の両方が同格の family-register-notice を持つ)。常用漢字/
+    // 人名用漢字によるタイブレークを追加する前は、ここで unique=null を
+    // 返していた。辺 が常用漢字で邊 がそうではないため、いまは一意に決まる。
     const bian = reduce("邉");
     expect(bian.candidates.length).toBeGreaterThanOrEqual(2);
-    expect(bian.unique).toBeNull();
+    expect(bian.unique).toBe("辺");
   });
 
   it("候補ゼロの文字は空配列と unique=null を返す(存在しない文字を捏造しない)", () => {
@@ -119,5 +119,55 @@ describe("reduce", () => {
 
   it("MJ に存在しない文字は resolvedVia='none' を返す", () => {
     expect(reduce("A").resolvedVia).toBe("none");
+  });
+});
+
+// rank/hop tier では決まらない拮抗に対する追加のタイブレーク。IPA 自身の
+// リファレンス実装(mandel59/mj2jisx0213)と同じ規則: 常用漢字が1つだけなら
+// それを選ぶ、2つ以上あれば決めない、常用漢字が無く人名用漢字が1つだけなら
+// それを選ぶ、2つ以上あればJIS水準最小のもの(複数あれば決めない)。
+// すべて data/snapshot/mji.00602.xlsx の「漢字施策」列を実測して確認した例。
+describe("常用漢字/人名用漢字によるタイブレーク", () => {
+  it("常用漢字がちょうど1つなら、それを選ぶ(正の例)", () => {
+    // 丗(U+4E17): 候補は 世(常用漢字)・丗(自己候補)・卅(施策なし)。
+    expect(reduce("丗").unique).toBe("世");
+    // 蝅(U+87C5): 候補は 蚕(常用漢字)・蠶(施策なし)。
+    expect(reduce("蝅").unique).toBe("蚕");
+    // 邉(U+9089): 候補は 辺(常用漢字)・邉(自己候補)・邊(施策なし)。
+    expect(reduce("邉").unique).toBe("辺");
+  });
+
+  it("常用漢字が2つ以上なら決めない(負の例)", () => {
+    // 朢(U+6722): 候補の 望・聖 はどちらも常用漢字。リファレンス実装も
+    // ここでは決めない — 独自規則を足すと根拠を失う。
+    const nozomi = reduce("朢");
+    expect(nozomi.candidates.map((c) => c.char).sort()).toEqual(["望", "聖"]);
+    expect(nozomi.unique).toBeNull();
+
+    // 功(U+529F): 候補の 切・功 もどちらも常用漢字。
+    const kou = reduce("功");
+    expect(kou.candidates.map((c) => c.char).sort()).toEqual(["切", "功"]);
+    expect(kou.unique).toBeNull();
+  });
+
+  it("常用漢字が無く人名用漢字がちょうど1つなら、それを選ぶ", () => {
+    // 剠(U+5260): 候補は 掠(人名用漢字)・黥(施策なし)。
+    const ryaku = reduce("剠");
+    expect(ryaku.candidates.map((c) => c.char).sort()).toEqual(["掠", "黥"]);
+    expect(ryaku.unique).toBe("掠");
+  });
+
+  it("人名用漢字が2つ以上で JIS水準が異なれば、最小の水準を選ぶ", () => {
+    // 𨖈(U+28588): 候補は 遙(人名用漢字・水準2)・遥(人名用漢字・水準1)。
+    const you = reduce(String.fromCodePoint(0x28588));
+    expect(you.candidates.map((c) => c.char).sort()).toEqual(["遙", "遥"].sort());
+    expect(you.unique).toBe("遥");
+  });
+
+  it("人名用漢字が2つ以上で JIS水準も同じなら決めない", () => {
+    // 𣘰(U+23630): 候補は 亘・亙、どちらも人名用漢字・水準1。
+    const kou2 = reduce(String.fromCodePoint(0x23630));
+    expect(kou2.candidates.map((c) => c.char).sort()).toEqual(["亙", "亘"].sort());
+    expect(kou2.unique).toBeNull();
   });
 });
