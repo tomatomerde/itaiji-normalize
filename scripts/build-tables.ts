@@ -148,14 +148,39 @@ const mjCandidates = new Map<string, Map<number, CandidateDetail>>();
  * 付記 = 別字 — "a different character".
  *
  * That annotation is the notice saying the two are NOT the same character, so
- * the target must not become a shrink candidate. IPA's own reference program
- * (mandel59/mj2jisx0213, MJ2JISX0213.es step 2.1) drops such a UCS from every
- * category of the entry, not just from the notice's own list, and this
- * follows that: 㐲's entry lists 伏 under both the family-register notice and
- * elsewhere, so filtering one list would leave the pair intact through the
- * other. Skipping this filter folded 96 characters onto the very character
- * the notice distinguishes them from (㐲→伏, 㕍→雁, 㬌→景, 䇦→英).
+ * the target must not become a shrink candidate — but only within the three
+ * lists IPA's own reference program actually filters it out of. In
+ * mandel59/mj2jisx0213, MJ2JISX0213.es (see /workspace/mandel59/mj2jisx0213/
+ * MJ2JISX0213.es):
+ *
+ *   - Step "1. JIS包摂・UCS統合規則" (lines 191-203) returns immediately when
+ *     `JIS包摂規準・UCS統合規則` is present, using its first entry outright.
+ *     Step "2.1 別字とされるものの除外" (line 209 onward, inside the
+ *     `法務省戸籍法関連通達・通知` branch) is never even reached in that case,
+ *     so a 付記=別字 UCS never gets the chance to knock out a JIS包摂 candidate.
+ *   - When step 2.1 does run, it `us.reject`s the 別字 UCS from exactly three
+ *     lists (lines 222-227): `法務省戸籍法関連通達・通知` (the list the 付記
+ *     itself came from), `法務省告示582号別表第四`, and `辞書類等による関連字`.
+ *     `JIS包摂規準・UCS統合規則` and `読み・字形による類推` are not touched —
+ *     the loop simply never mentions them.
+ *
+ * This follows that exactly: excluding from only those three categories. 㐲's
+ * entry lists 伏 under both the family-register notice and elsewhere, so
+ * filtering only the notice's own list would leave the pair intact through
+ * the other; excluding from all three still catches it. Skipping this filter
+ * entirely folded 96 characters onto the very character the notice
+ * distinguishes them from (㐲→伏, 㕍→雁, 㬌→景, 䇦→英) — but excluding it from
+ * JIS包摂規準・UCS統合規則 too (as an earlier version of this script did) went
+ * too far the other way: it stripped 宮 (U+5BAE) as a candidate for 宫
+ * (U+5BAB), which JIS包摂規準・UCS統合規則 records as the same character, and
+ * left 宫 folding onto the unrelated 共 (MOJ Notice 582's rank-2 pick) instead.
  */
+const CATEGORIES_SUBJECT_TO_DIFFERENT_CHARACTER_EXCLUSION = new Set<(typeof CATEGORIES)[number]>([
+  "法務省戸籍法関連通達・通知",
+  "法務省告示582号別表第四",
+  "辞書類等による関連字",
+]);
+
 function differentCharacterTargets(entry: Record<string, unknown>): Set<number> {
   const out = new Set<number>();
   const items = entry["法務省戸籍法関連通達・通知"] as Array<Record<string, string>> | undefined;
@@ -175,11 +200,12 @@ for (const entry of shrinkMap.content) {
     const items = entry[cat] as Array<Record<string, string>> | undefined;
     if (!items) continue;
     const bit = CATEGORY_BIT[cat];
+    const catSubjectToExclusion = CATEGORIES_SUBJECT_TO_DIFFERENT_CHARACTER_EXCLUSION.has(cat);
     for (const item of items) {
       const ucsStr = item["UCS"];
       if (!ucsStr) continue;
       const targetCp = parseUcs(ucsStr);
-      if (excluded.has(targetCp)) {
+      if (catSubjectToExclusion && excluded.has(targetCp)) {
         differentCharacterCandidatesDropped++;
         continue;
       }

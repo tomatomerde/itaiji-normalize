@@ -95,8 +95,8 @@ describe("推論エッジ(inferred)", () => {
       }
     }
     // 有向カウント(各無向辺を2回数える)。
-    expect(total / 2).toBe(30650);
-    expect(inferred / 2).toBe(2999);
+    expect(total / 2).toBe(30653);
+    expect(inferred / 2).toBe(3000);
   });
 
   it("不正な options を黙って無視しない", () => {

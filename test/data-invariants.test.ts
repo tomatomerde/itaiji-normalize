@@ -62,6 +62,62 @@ describe("生成データが満たすべき不変条件", () => {
     }
   });
 
+  it("別字の除外は JIS包摂規準・UCS統合規則の候補には及ばない", () => {
+    // mandel59/mj2jisx0213 の MJ2JISX0213.es は、JIS包摂規準・UCS統合規則が
+    // あればそれで確定して return する(191-203行目)。付記=別字 を全カテゴリ
+    // から除外する処理(2.1, 209-228行目)はその戸籍法関連通達の分岐の中に
+    // あり、JIS包摂規準・UCS統合規則が存在する時点でそこには到達しない。
+    // つまり JIS包摂規準・UCS統合規則の候補は、その MJ 字形が別字リストに
+    // 何を挙げていようと一切対象外——この5件は、かつて(0.1.0-0.1.2)全カテ
+    // ゴリから除外していたせいで消えていた候補。
+    const REVIVED: ReadonlyArray<{ label: string; input: string; expected: string }> = [
+      { label: "MJ006478 亮+IVS(E0102)", input: `亮${String.fromCodePoint(0xe0102)}`, expected: "亮" },
+      { label: "MJ010148 宫(U+5BAB)", input: "宫", expected: "宮" },
+      { label: "MJ019956 紀+IVS(E0102)", input: `紀${String.fromCodePoint(0xe0102)}`, expected: "紀" },
+      { label: "MJ024358 記+IVS(E0102)", input: `記${String.fromCodePoint(0xe0102)}`, expected: "記" },
+      { label: "MJ058447 𮎰(U+2E3B0)", input: String.fromCodePoint(0x2e3b0), expected: "荒" },
+      {
+        label: "MJ058447 𮎰+IVS(E0100)",
+        input: String.fromCodePoint(0x2e3b0) + String.fromCodePoint(0xe0100),
+        expected: "荒",
+      },
+    ];
+    for (const { label, input, expected } of REVIVED) {
+      const r = reduce(input);
+      const hit = r.candidates.find((c) => c.char === expected);
+      expect(hit, `${label}: ${expected} が候補に含まれる`).toBeTruthy();
+      expect(hit!.basis, `${label}: ${expected} の根拠に jis-inclusion-rule が含まれる`).toContain(
+        "jis-inclusion-rule",
+      );
+    }
+
+    // このうち4件は JIS包摂規準・UCS統合規則が唯一の候補になるので、
+    // unique/toMatchingKey もその値まで解決する。
+    for (const { label, input, expected } of REVIVED) {
+      if (label === "MJ010148 宫(U+5BAB)") continue; // 下の別テストで扱う
+      expect(reduce(input).unique, `${label} の unique`).toBe(expected);
+      expect(toMatchingKey(input).key, `${label} のキー`).toBe(expected);
+    }
+  });
+
+  it("宫(U+5BAB) は 宮(U+5BAE) を候補として取り戻すが、unique は共(U+5171)のまま残る", () => {
+    // 宫 だけは 法務省告示582号別表第四 に第2順位(共)も記録されているため、
+    // 「候補が復活する」ことと「unique がそれに変わる」ことは別問題になる。
+    // 宮(順位1位)は別字除外で告示582側の順位情報を失って jis-inclusion-rule
+    // だけの tier2 候補になり、tier0(順位あり)の共に pickBest で負ける
+    // (src/reduce.ts の tier 規則: JIS包摂規準は順位もホップ数も持たない
+    // ので必ず最後の tier)。すなわち、この修正が直すのは「候補一覧から
+    // 宮が消えていた」ことであり、「unique が無関係な共に畳まれる」こと
+    // そのものではない――同じ根の問題ではあるが、pickBest の tier 設計
+    // (1,246 件の自己候補と共通のルール)まで変えないと解消しない、別の
+    // 論点として残っている。
+    const r = reduce("宫");
+    expect(r.candidates.map((c) => c.char).sort()).toEqual(["共", "宮"]);
+    expect(r.candidates.find((c) => c.char === "宮")!.basis).toEqual(["jis-inclusion-rule"]);
+    expect(r.unique).toBe("共");
+    expect(toMatchingKey("宫").key).toBe("共");
+  });
+
   it("REDUCE_BY_UCS の全キーが CJK 漢字の範囲に入る", () => {
     // toMatchingKey は isCjkIdeograph() で unresolved の報告対象を絞っている。
     // MJ の縮退元がこの範囲から外れると、その文字は「縮退できなかった」ことを
@@ -158,12 +214,12 @@ describe("文書が主張する統計値", () => {
     return tied.length > 1 ? { tier: best.tier, hexes: tied.map((x) => x.hex) } : null;
   }
 
-  it("テーブルキーは 30,344(文字)+ 9,946(変異シーケンス)= 40,290", () => {
-    expect(Object.keys(REDUCE_BY_UCS).length).toBe(30_344);
-    expect(Object.keys(REDUCE_BY_IVS).length).toBe(9_946);
+  it("テーブルキーは 30,345(文字)+ 9,950(変異シーケンス)= 40,295", () => {
+    expect(Object.keys(REDUCE_BY_UCS).length).toBe(30_345);
+    expect(Object.keys(REDUCE_BY_IVS).length).toBe(9_950);
   });
 
-  it("異体字グラフは 30,650 エッジ、うち推論エッジ 2,999", () => {
+  it("異体字グラフは 30,653 エッジ、うち推論エッジ 3,000", () => {
     const seen = new Map<string, number>();
     for (const [src, neighbors] of Object.entries(VARIANT_ADJACENCY)) {
       for (const [dst, , direct] of neighbors) {
@@ -173,8 +229,8 @@ describe("文書が主張する統計値", () => {
         else seen.set(key, direct);
       }
     }
-    expect(seen.size).toBe(30_650);
-    expect([...seen.values()].filter((d) => d === 0).length).toBe(2_999);
+    expect(seen.size).toBe(30_653);
+    expect([...seen.values()].filter((d) => d === 0).length).toBe(3_000);
   });
 
   it("順位(告示582)は決してタイを作らない。タイはホップ tier に 234、無順位 tier に 572", () => {
