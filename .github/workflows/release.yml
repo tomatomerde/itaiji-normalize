@@ -6,12 +6,20 @@ name: Release
 #   - tag push (`v1.2.3`): the real release. dry_run is forced off, the tag
 #     must match package.json's version, CHANGELOG.md must have a dated
 #     section for it, and a GitHub Release is created from that section.
-#   - workflow_dispatch: the same pipeline with dry_run defaulting to true,
-#     for exercising the release without publishing, or for re-running a
-#     release that failed after publishing (npm view detects the version is
-#     already there and skips). A dispatch run has no tag, so the version
-#     and CHANGELOG guards do not apply — it publishes whatever is on disk,
-#     which is why the version and dist-tag are printed to the summary.
+#   - workflow_dispatch with cut_release: true: the other normal release
+#     path, and the one an agent session has to use — sessions cannot push
+#     tags (403), so requiring a tag push would put a human in the middle of
+#     every release. The tag is derived from package.json, the same version
+#     and CHANGELOG guards apply, and the tag itself is created by
+#     `gh release create --target` at the end, after publish succeeded. Tags
+#     created with GITHUB_TOKEN do not start another run.
+#   - workflow_dispatch with cut_release: false (the default): the same
+#     pipeline with dry_run defaulting to true, for exercising the release
+#     without publishing, or for re-running a release that failed after
+#     publishing (npm view detects the version is already there and skips).
+#     Such a run has no tag, so the version and CHANGELOG guards do not
+#     apply — it publishes whatever is on disk, which is why the version and
+#     dist-tag are printed to the summary.
 #
 # `npm publish` is the only step a dry run cannot exercise; everything before
 # it — build, tests, data-snapshot verification, packing, tarball assertions,
@@ -34,6 +42,10 @@ on:
         description: 'Run every check but skip the actual npm publish'
         type: boolean
         default: true
+      cut_release:
+        description: 'Cut a release: tag + GitHub Release from the package.json version (overrides dry_run)'
+        type: boolean
+        default: false
 
 # contents: write creates the GitHub Release on a tag push.
 # id-token: write lets npm mint a provenance attestation for the tarball.
@@ -86,6 +98,27 @@ jobs:
             {
               echo "TAG=$TAG"
               echo "EXPECTED_VERSION=${TAG#v}"
+              echo "CHECK_VERSION=true"
+              echo "DRY_RUN=false"
+              echo "CREATE_RELEASE=true"
+            } >> "$GITHUB_ENV"
+          elif [ "${{ github.event.inputs.cut_release }}" = "true" ]; then
+            # Same plan as a tag push, except the tag does not exist yet: it
+            # is derived from what is on disk, and created at the end. "Cut a
+            # release" and "skip the publish" cannot both be true, so
+            # cut_release wins — loudly, not silently.
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "::notice::cut_release=true overrides dry_run=true — this run will publish."
+            fi
+            version=$(node -p "require('./package.json').version")
+            {
+              echo "TAG=v$version"
+              echo "EXPECTED_VERSION=$version"
+              # The tag-vs-package check below is a tautology on this path
+              # (the tag came from package.json), but the CHANGELOG guard
+              # rides the same flag and is not: it still refuses to cut a
+              # release whose section is missing or still says "unreleased".
               echo "CHECK_VERSION=true"
               echo "DRY_RUN=false"
               echo "CREATE_RELEASE=true"
@@ -356,8 +389,24 @@ jobs:
             } > release-notes.md
           fi
 
+      # `--target` is what makes the cut_release path work: when the tag does
+      # not exist yet, `gh release create` creates it at that commit, so the
+      # release is cut without anyone pushing a tag. On a tag push the tag
+      # already exists and github.sha is the commit it points at, so passing
+      # it changes nothing.
+      #
+      # An existing Release is left alone rather than failing the run, for the
+      # same reason the publish step skips a version already on npm:
+      # re-running a release has to be safe.
       - name: Create GitHub Release
         if: env.CREATE_RELEASE == 'true' && env.DRY_RUN != 'true'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "A GitHub Release for $TAG already exists; leaving it as is."
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" \
+              --title "$TAG" --notes-file release-notes.md
+          fi
