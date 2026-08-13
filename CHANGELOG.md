@@ -3,6 +3,32 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.4 — 2026-08-13
+
+### Fixed
+
+- README (both languages) shipped in 0.1.3 still said `reduce("邉").unique`
+  is `null`. The 常用漢字 tier added in that same release decides it — 邉's
+  candidates 辺 and 邊 tie, 辺 is a 常用漢字, so `unique` is now 辺. The
+  sentence was left over from the version before, contradicting the code it
+  documents in the release that changed it. The passage now uses 𡥨 (whose
+  candidates 㬜 and 晉 still tie, and whose key is 晋 because both branches
+  reach it), which demonstrates the same `reduce`/`toMatchingKey` division of
+  labour with a case that survives the new tier.
+- The same passage said 557 of the 806 tied keys "resolve this way", crediting
+  branch agreement for all of them. Measured: 502 are decided one step earlier
+  by the 常用漢字/人名用漢字 tier inside `reduce`, 55 by branch agreement in
+  `toMatchingKey`, and 249 remain `"ambiguous"`.
+
+### Added
+
+- `test/readme-claims.test.ts` pins every per-character claim the READMEs make
+  (`reduce("楳").unique` is U+FA44, `getVariants("崎")` has five entries, the
+  filtering example drops 井–牛 but keeps 猫–貓, …) and greps both files for
+  the characters involved. 0.1.2 pinned the *statistics* after they drifted;
+  the per-character claims were still unguarded, which is how the 邉 sentence
+  above shipped.
+
 ## 0.1.3 — 2026-08-13
 
 ### Added

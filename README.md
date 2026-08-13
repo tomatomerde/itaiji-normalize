@@ -419,17 +419,24 @@ reduction; with `unicodeNormalize: false` it equals the input.
 A tie does not automatically mean unresolved. `reduce` refuses to name a
 representative when candidates score equally, because doing so would be a
 guess — but for a matching key the question is narrower: do the tied
-branches lead anywhere different? Often they don't. 邉 ties between 辺 and
-邊, and 邊 itself reduces to 辺, so every branch ends at 辺 and the choice
-provably could not have mattered. `toMatchingKey` follows all tied branches
-and accepts the answer only when they agree, which is a proof rather than a
-guess; of the 806 table keys (characters and variation sequences) whose
-candidates tie, 557 resolve this way and the other 249 are still reported
-`"ambiguous"` (measured with the default NFKC). This is why **渡邉 matches
-渡辺** — before it, 渡邊 matched and 渡邉 did not, which is worse than
-either outcome alone.
-Note that `reduce("邉").unique` is still `null`: `reduce` reports the
-single-step fact, `toMatchingKey` resolves the key.
+branches lead anywhere different? Often they don't. 𡥨 ties between 㬜 and
+晉, and both of those reduce onward to 晋, so every branch ends at the same
+place and the choice provably could not have mattered. `toMatchingKey`
+follows all tied branches and accepts the answer only when they agree, which
+is a proof rather than a guess.
+
+Of the 806 table keys (characters and variation sequences) whose candidates
+tie under rank and hop, 502 are decided one step earlier by the
+常用漢字/人名用漢字 tier inside `reduce`, a further 55 are resolved here by
+branch agreement, and the remaining 249 are reported `"ambiguous"` (measured
+with the default NFKC). **渡邉 matches 渡辺** either way — before any of
+this, 渡邊 matched and 渡邉 did not, which is worse than either outcome
+alone.
+
+The division of labour still holds where a tie survives `reduce`:
+`reduce("𡥨").unique` is `null` because naming one of 㬜 and 晉 the
+representative would be a guess, while `toMatchingKey("𡥨").key` is 晋
+because the guess turns out not to be needed.
 
 **Only ideographs are reported in `unresolved`.** Kana, latin letters,
 digits, punctuation and whitespace are outside the MJ character set by
