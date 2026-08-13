@@ -57,8 +57,8 @@ Two conditions are worth knowing before you commit to it, because both fail
 *after* the install rather than during it — full details under
 [Known limitations](#known-limitations):
 
-- **The bundled tables are large**: ~270–290 KB gzipped even for a single
-  entry point, **~560 KB for the whole API**. On Cloudflare Workers that is
+- **The bundled tables are large**: ~280–290 KB gzipped even for a single
+  entry point, **~570 KB for the whole API**. On Cloudflare Workers that is
   over half the 1 MB budget. Import only what you use — the tables carry
   `/* @__PURE__ */` annotations so bundlers can drop the rest.
 - **Full ICU is required** for the default `unicodeNormalize: "NFKC"`.
@@ -110,7 +110,7 @@ responsibly.
 
 - Character coverage: the union of the MJ character set (戸籍統一文字 +
   住基ネット統一文字, ~58,900 MJ glyphs in Ver.006.02) reducible to JIS X
-  0213, giving 30,344 distinct source characters and 9,946 variation-sequence
+  0213, giving 30,345 distinct source characters and 9,950 variation-sequence
   keys. Ideographs outside MJ (e.g. Chinese simplified forms such as 龟) are
   not covered — `reduce`/`getVariants` return no candidates for them, and
   `toMatchingKey` reports them as `"no-candidate"`.
@@ -144,10 +144,17 @@ KB either way depending on your bundler and its version):
 
 | what you import | gzip |
 | --- | --- |
-| `isVariant` only | ~290 KB |
-| `reduce` only | ~270 KB |
-| `toMatchingKey` | ~271 KB |
-| the whole API | ~562 KB |
+| `isVariant` only | ~287 KB |
+| `reduce` only | ~282 KB |
+| `toMatchingKey` | ~282 KB |
+| the whole API | ~568 KB |
+
+`reduce` and `toMatchingKey` grew by about 11 KB each in 0.1.3 — they now
+pull in the `KANJI_POLICY` table (2,999 entries) that backs the
+常用漢字/人名用漢字 tiebreak described under [`reduce`](#reducechar-reduceresult).
+`isVariant` doesn't consult that table, so it is essentially unchanged. The
+whole-API bundle only grew by about 6 KB, since bundling both functions
+together shares one copy of the table instead of paying for it twice.
 
 The generated tables carry `/* @__PURE__ */` annotations so bundlers can drop
 the ones you don't reach; without them every consumer paid for all of them.
@@ -198,33 +205,49 @@ selector is rejected for the same reason — reducing only the first would
 discard the rest. Use `toMatchingKey` for whole strings.
 
 `unique` is a single representative pick, or `null` when there are zero
-candidates, or when the candidates are tied under the built-in selection
-heuristic and picking one would be an unprincipled guess. The heuristic
-prefers, in order: the priority rank recorded in MOJ Notice 582 Appendix 4;
-failing that, the lowest hop count recorded in a family register notice;
-failing that, it returns `null` rather than picking arbitrarily (e.g. by
-code point). This is an original heuristic documented in
+candidates, or when the candidates are still tied after every tier of the
+built-in selection heuristic and picking one would be an unprincipled guess.
+The heuristic prefers, in order: the priority rank recorded in MOJ Notice 582
+Appendix 4; failing that, the lowest hop count recorded in a family register
+notice; failing that, whichever tied candidate is 常用漢字 (the Jōyō kanji
+list), if exactly one of them is — or, if none are, whichever is 人名用漢字
+(kanji permitted in given names beyond the Jōyō list), broken by lowest
+JIS水準 if more than one of those is tied too; failing all of that, it returns
+`null` rather than picking arbitrarily (e.g. by code point). Of the 806 table
+keys where rank and hop leave a tie, this last tier resolves 502 of them
+outright; the remaining 304 have no 常用漢字/人名用漢字 candidate to decide
+between (or more than one at the same level) and stay `null`.
+
+The rank and hop tiers are an original heuristic documented in
 [`src/reduce.ts`](./src/reduce.ts) — not a port of any other tool's
-algorithm. MJ itself does not prescribe one: its published guidance says
-that when several candidates are listed you should judge the actual target
-from the context the character is used in, and offers rules such as
-"prefer the 常用漢字" or "prefer the lowest JIS code" only as examples. The
-rank and hop fields are this package's reading of the data, not an
-instruction the data carries.
+algorithm. **The 常用漢字/人名用漢字 tier is not original**: it is the same
+rule IPA's own reference implementation applies once its own rank/hop-style
+tiers run out, used verbatim rather than reinvented, and it is backed by a
+2,999-entry table built from the same 常用漢字/人名用漢字 policy lists the
+reference implementation reads (2,136 常用漢字, 863 人名用漢字). MJ itself
+does not prescribe any of this: its published guidance says that when
+several candidates are listed you should judge the actual target from the
+context the character is used in, and offers rules such as "prefer the
+常用漢字" or "prefer the lowest JIS code" only as examples. The rank and hop
+fields are this package's reading of the data; the 常用漢字/人名用漢字 tier
+is the reference implementation's.
 
 IPA does publish a reference program that picks one candidate
 ([mandel59/mj2jisx0213](https://github.com/mandel59/mj2jisx0213), MIT,
-© 2015 IPA), and **this package's order is not that one.** The reference
-takes JIS包摂規準 first when present, then the family-register notices (by
-hop count), and treats MOJ Notice 582's rank as the *last* resort; it then
-breaks remaining ties by preferring 常用漢字, then 人名用漢字 by JIS level.
-The difference follows from a different goal: the reference produces a
-JIS X 0213 conversion table, so "this glyph is already representable" ends
-the question, whereas this package builds matching keys, where folding 㐂
-onto 喜 is the point. Measured over the shipped tables, rank and hop pick
-different winners for 248 source characters, and rank does not always pick
-the more common form (for 㓮, rank gives the rare 雕 where hop gives the
-everyday 彫). If you need the reference behavior, use the reference.
+© 2015 IPA). **The rules that remain different from this package are down to
+tier order, not the tiebreak itself anymore.** The reference takes
+JIS包摂規準 first when present, then the family-register notices (by hop
+count), and treats MOJ Notice 582's rank as the *last* resort — before
+falling through to the same 常用漢字 → 人名用漢字 (by JIS level) tiebreak
+this package now applies. This package puts MOJ Notice 582's rank first and
+JIS包摂規準 last. The difference follows from a different goal: the
+reference produces a JIS X 0213 conversion table, so "this glyph is already
+representable" ends the question, whereas this package builds matching keys,
+where folding 㐂 onto 喜 is the point. Measured over the shipped tables,
+putting rank ahead of hop instead of behind it picks a different winner for
+248 source characters, and rank does not always pick the more common form
+(for 㓮, rank gives the rare 雕 where hop gives the everyday 彫). If you need
+the reference's tier order, use the reference.
 
 Two consequences of that heuristic are worth knowing before you use
 `unique` as a key:
@@ -237,11 +260,13 @@ Two consequences of that heuristic are worth knowing before you use
 - **A character that MJ says needs no shrinking can still be replaced.** The
   JIS包摂規準・UCS統合規則 category usually names the character itself, which
   is MJ's way of saying "already representable"; that entry carries neither
-  a rank nor a hop count, so it never wins the comparison above. For 1,246
+  a rank nor a hop count, so it never wins the rank/hop tiers above, and
+  usually has no 常用漢字/人名用漢字 status of its own either. For 1,288
   source characters the result is a genuine fold (`reduce("㐂").unique` is
   喜, `reduce("㠀").unique` is 島) — useful for name matching, but it means
-  `unique` is not "the JIS X 0213 form of this glyph". For 47 more such
-  characters the candidates tie and `unique` is `null`.
+  `unique` is not "the JIS X 0213 form of this glyph". For 5 more such
+  characters the candidates tie even after the 常用漢字/人名用漢字 tier and
+  `unique` is `null`.
 
 `resolvedVia` reports which table entry answered the lookup: `"ivs"` or
 `"svs"` when the input's own variation sequence was found, `"base"` when it
@@ -310,7 +335,7 @@ for a character that needs one, and neither 猫 nor 貓 does.
 them with no variants at all. Recorded relations are unaffected either way:
 沢–澤, 辺–邊, 斉–齊, 竜–龍, 桜–櫻, 国–國, 髙–高, 﨑–崎 are `true` in both.
 
-Within those 2,999 inferred edges, **1,427 (47.6%) carry
+Within those 3,000 inferred edges, **1,427 (47.6%) carry
 `basis: ["moj-notice-582-appendix-4"]` alone** — the same shape as
 `isVariant("井", "牛")` above: the notice ranking a third, rarer glyph's
 candidates against each other, not a statement about the two characters
@@ -318,7 +343,7 @@ themselves. A sample pulled from that layer turned up no plausible variant
 pairs (not exhaustively checked, so treat this as a sampling result, not a
 count).
 
-You don't have to choose between all 2,999 and none: `getVariants` already
+You don't have to choose between all 3,000 and none: `getVariants` already
 exposes enough to drop just that layer:
 
 ```ts
@@ -335,7 +360,7 @@ dropNotice582OnlyLayer("猫").map((v) => v.char); // ["貓"] — kept: basis als
 None of the pairs above are affected — their `basis` always carries
 `jis-inclusion-rule` and `family-register-notice` alongside the notice, so
 `basis.length === 1` never matches them. This sits between the two
-`includeInferred` values: `true` keeps all 2,999 inferred edges, `false`
+`includeInferred` values: `true` keeps all 3,000 inferred edges, `false`
 drops all of them (real pairs included), and this filter drops only the
 sub-layer sampling didn't find real pairs in — a middle setting already
 reachable from the data `getVariants` returns today.
@@ -351,7 +376,7 @@ expansion — e.g. searching for "崎" and also matching documents containing
 "﨑".
 
 **Check `inferred` before quoting `basis` as an authority's word on the
-pair.** About 10% of the graph's edges (2,999 of 30,650) exist only because
+pair.** About 10% of the graph's edges (3,000 of 30,653) exist only because
 both characters are candidates of one shared MJ glyph, and on those the
 `basis` describes that shared relationship rather than a statement about the
 two characters themselves. MOJ Notice 582 says 齍 may be written 斉 or 資;
@@ -399,7 +424,7 @@ branches lead anywhere different? Often they don't. 邉 ties between 辺 and
 provably could not have mattered. `toMatchingKey` follows all tied branches
 and accepts the answer only when they agree, which is a proof rather than a
 guess; of the 806 table keys (characters and variation sequences) whose
-candidates tie, 343 resolve this way and the other 463 are still reported
+candidates tie, 557 resolve this way and the other 249 are still reported
 `"ambiguous"` (measured with the default NFKC). This is why **渡邉 matches
 渡辺** — before it, 渡邊 matched and 渡邉 did not, which is worse than
 either outcome alone.
@@ -427,7 +452,7 @@ ideographs distinct.
 MJ glyph names in the Character Information List frequently carry an IVS
 (Ideographic Variation Selector, U+E0100–U+E01EF) or SVS — about 11,000 of
 the ~59,000 MJ entries in the version this package was built from, producing
-9,946 variation-sequence lookup keys. `reduce`, `isVariant`, and
+9,950 variation-sequence lookup keys. `reduce`, `isVariant`, and
 `getVariants` all accept a base character immediately followed by one
 variation selector as a single input unit. If the specific sequence isn't
 found, `reduce` falls back to the base character's entry and says so via
@@ -489,7 +514,7 @@ those explicitly.
   study, so its machine-readability was not verified
 - Tables are stored as plain JSON. A compact re-encoding (shared target
   dictionary, code point delta encoding) would cut the whole-API bundle
-  well below the current ~562 KB gzip; designed in the phase 0 study, not
+  well below the current ~568 KB gzip; designed in the phase 0 study, not
   yet implemented
 - No Deno or Bun coverage in CI (Node, Chromium and workerd are covered)
 - No Python port yet (depends on adoption of the TypeScript version)

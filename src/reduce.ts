@@ -47,7 +47,7 @@ function toCandidates(list: SerializedCandidate[]): Candidate[] {
  *
  * Two properties that follow from the rank/hop tiers and are easy to misread:
  *
- *   - Rank never ties: across all 40,290 table keys there is no key where two
+ *   - Rank never ties: across all 40,295 table keys there is no key where two
  *     candidates share the best 順位, so tier 0 always decides on its own.
  *     Every recorded tie is at the hop tier (234) or the unranked tier (572)
  *     before the 常用漢字/人名用漢字 tier gets a chance to break it.

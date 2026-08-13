@@ -163,8 +163,8 @@ function walk(char: string, mode: NormalizeMode, visited: Set<string>, budget: B
  * This is why 渡邉 matches 渡辺. Before this, 渡邊 matched and 渡邉 did not,
  * which is worse than either outcome on its own — the same surname sorted
  * into two buckets depending on which variant a record happened to use.
- * Measured over the shipped table (default NFKC), 343 of the 806 keys whose
- * candidates tie resolve this way; the remaining 463 genuinely disagree and
+ * Measured over the shipped table (default NFKC), 557 of the 806 keys whose
+ * candidates tie resolve this way; the remaining 249 genuinely disagree and
  * are still reported "ambiguous". Pinned by test/data-invariants.test.ts.
  */
 function resolveTie(
