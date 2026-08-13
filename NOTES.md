@@ -51,6 +51,8 @@ npm run typecheck
 ./scripts/verify-snapshots.sh   # 同梱スナップショットを PROVENANCE.md のハッシュと照合
 npm run test:browser   # headless Chromium で dist を実行(要 npm run build)
 npm run test:workers   # workerd(Cloudflare Workers)で dist を実行(同上)
+npm run test:dist      # 既存98件のテストスイートを dist/index.js (ESM) に対して実行(要 npm run build)
+npm run test:dist:cjs  # 同上、dist/index.cjs (CJS) に対して実行
 ```
 
 ブラウザ検証で使う Chromium は `scripts/verify-browser.mjs` が解決する。環境変数
