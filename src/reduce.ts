@@ -32,20 +32,24 @@ function toCandidates(list: SerializedCandidate[]): Candidate[] {
  * and it offers "prefer the 常用漢字" / "prefer the lowest JIS code" only as
  * examples. So the tier order below is this package's reading, and it is not
  * uniformly right: measured over the shipped tables, rank and hop pick
- * different winners for 251 source glyphs, and while rank picks the more
- * common JIS level in 154 of them, it picks the rarer one in 49 (e.g. 㓮,
- * where rank gives 雕 and hop gives 彫).
+ * different winners for 248 source characters, and rank does not always pick
+ * the more common form (e.g. 㓮, where rank gives the rare 雕 and hop gives
+ * the everyday 彫).
  *
  * Two properties that follow from the tiers and are easy to misread:
  *
- *   - Rank never ties: across all 40,368 table keys there is no key where two
+ *   - Rank never ties: across all 40,290 table keys there is no key where two
  *     candidates share the best 順位, so tier 0 always decides on its own.
- *     Every recorded tie is at the hop tier (248) or the unranked tier (581).
+ *     Every recorded tie is at the hop tier (234) or the unranked tier (572).
  *   - JIS包摂規準 evidence carries no rank and no hop, so it lands in the last
  *     tier and never wins. That category usually names the source character
  *     itself — MJ's way of recording "already representable" — which is why
- *     reduce("㐂").unique is 喜 rather than 㐂 (1,277 keys behave that way,
- *     and 54 more tie against their own self-candidate and return null).
+ *     reduce("㐂").unique is 喜 rather than 㐂 (1,246 keys behave that way,
+ *     and 47 more keys carrying a self-candidate end in a tie and return
+ *     null).
+ *
+ * These figures are pinned by test/data-invariants.test.ts ("文書が主張する
+ * 統計値") — update them together with a data update, not from memory.
  */
 export interface Selection {
   /** The winning candidate, or null when nothing wins outright. */

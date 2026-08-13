@@ -1,6 +1,6 @@
 {
   "name": "itaiji-normalize",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Grounded itaiji (kanji variant) normalization, equivalence, and matching-key generation using IPA's MJ Shrink Map",
   "keywords": [
     "itaiji",

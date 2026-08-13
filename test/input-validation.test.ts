@@ -69,6 +69,16 @@ describe("toMatchingKey の options 検証", () => {
       expect(() => toMatchingKey("崎", { unicodeNormalize: mode })).not.toThrow();
     }
   });
+
+  it("未知のオプションキーは黙って無視せず拒否する(isVariant と同じ扱い)", () => {
+    // { normalize: "NFC" } のようなキーの打ち間違いは、値の検証だけでは
+    // 捕まらずに既定(NFKC)へ黙ってフォールバックする——呼び出し側は
+    // オプトアウトしたつもりのまま別のキーを受け取る。isVariant は
+    // 未知キーを拒否しており、toMatchingKey だけが素通しだった。
+    expect(() => toMatchingKey("崎", { normalize: "NFC" } as unknown as object)).toThrow(TypeError);
+    expect(() => toMatchingKey("崎", { normalize: "NFC" } as unknown as object)).toThrow(/unknown option "normalize"/);
+    expect(() => toMatchingKey("崎", { unicodeNormalise: false } as unknown as object)).toThrow(/unknown option/);
+  });
 });
 
 describe("変異セレクタの個数", () => {

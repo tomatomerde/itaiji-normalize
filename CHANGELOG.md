@@ -3,7 +3,45 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.1 — 2026-08-11
+## 0.1.2 — 2026-08-13
+
+### Fixed
+
+- `toMatchingKey` silently ignored unknown option keys: a misspelling like
+  `{ normalize: "NFC" }` or `{ unicodeNormalise: false }` fell back to the
+  default NFKC without any indication, while the caller believed they had
+  opted out — the exact class of silent fallback this library documents
+  itself as refusing. It now throws a `TypeError` naming the unknown key,
+  matching what `isVariant` has done since 0.1.0. Valid options are
+  unaffected.
+- The statistics quoted in the README (both languages) and in the source
+  JSDoc for the selection heuristic's limits were measured on the
+  pre-release tables from *before* the 付記=別字 exclusion that shipped in
+  0.1.0, and were never re-measured against the tables actually published:
+  ties among candidates occur on 806 table keys, not 898, of which
+  `toMatchingKey` resolves 343 by branch agreement (was 345/553); rank-first
+  and hop-first selection disagree on 248 source characters, not 251; a
+  self-candidate is folded away on 1,246 keys, not 1,277, and ends in a tie
+  on 47, not 54. The claim that rank picks "the more common JIS level in 154
+  of the disagreements but the rarer one in 49" was removed outright: its
+  criterion was never reproducible from this repository (the verified 㓮
+  example — rank→雕, hop→彫 — stays). All remaining figures are now pinned
+  by tests, so the next data update fails loudly instead of letting the
+  documentation drift again.
+- The 0.1.1 entry below was dated 2026-08-11; the tag and the npm publish
+  both happened on 2026-08-12.
+
+### Added
+
+- README (both languages) now states explicitly that `isVariant` and
+  `getVariants` look relations up at the base-character level: a variation
+  selector is accepted as input but does not narrow the lookup, so
+  `getVariants("辻\u{E0100}")` equals `getVariants("辻")`, and two sequences
+  sharing a base are the same character to `isVariant`. Only `reduce` and
+  `toMatchingKey` consult the sequence-specific entries. This was previously
+  documented only in source comments.
+
+## 0.1.1 — 2026-08-12
 
 ### Added
 
