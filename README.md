@@ -222,9 +222,9 @@ The difference follows from a different goal: the reference produces a
 JIS X 0213 conversion table, so "this glyph is already representable" ends
 the question, whereas this package builds matching keys, where folding 㐂
 onto 喜 is the point. Measured over the shipped tables, rank and hop pick
-different winners for 251 source glyphs, and rank picks the more common JIS
-level in 154 of them — but the rarer one in 49. If you need the reference
-behavior, use the reference.
+different winners for 248 source characters, and rank does not always pick
+the more common form (for 㓮, rank gives the rare 雕 where hop gives the
+everyday 彫). If you need the reference behavior, use the reference.
 
 Two consequences of that heuristic are worth knowing before you use
 `unique` as a key:
@@ -237,11 +237,11 @@ Two consequences of that heuristic are worth knowing before you use
 - **A character that MJ says needs no shrinking can still be replaced.** The
   JIS包摂規準・UCS統合規則 category usually names the character itself, which
   is MJ's way of saying "already representable"; that entry carries neither
-  a rank nor a hop count, so it never wins the comparison above. For 1,277
+  a rank nor a hop count, so it never wins the comparison above. For 1,246
   source characters the result is a genuine fold (`reduce("㐂").unique` is
   喜, `reduce("㠀").unique` is 島) — useful for name matching, but it means
-  `unique` is not "the JIS X 0213 form of this glyph". For 54 more the
-  self-candidate ties with another and `unique` is `null`.
+  `unique` is not "the JIS X 0213 form of this glyph". For 47 more such
+  characters the candidates tie and `unique` is `null`.
 
 `resolvedVia` reports which table entry answered the lookup: `"ivs"` or
 `"svs"` when the input's own variation sequence was found, `"base"` when it
@@ -358,9 +358,11 @@ branches lead anywhere different? Often they don't. 邉 ties between 辺 and
 邊, and 邊 itself reduces to 辺, so every branch ends at 辺 and the choice
 provably could not have mattered. `toMatchingKey` follows all tied branches
 and accepts the answer only when they agree, which is a proof rather than a
-guess; 345 of the 898 tied characters resolve this way and the other 553 are
-still reported `"ambiguous"`. This is why **渡邉 matches 渡辺** — before it,
-渡邊 matched and 渡邉 did not, which is worse than either outcome alone.
+guess; of the 806 table keys (characters and variation sequences) whose
+candidates tie, 343 resolve this way and the other 463 are still reported
+`"ambiguous"` (measured with the default NFKC). This is why **渡邉 matches
+渡辺** — before it, 渡邊 matched and 渡邉 did not, which is worse than
+either outcome alone.
 Note that `reduce("邉").unique` is still `null`: `reduce` reports the
 single-step fact, `toMatchingKey` resolves the key.
 
@@ -390,6 +392,14 @@ the ~59,000 MJ entries in the version this package was built from, producing
 variation selector as a single input unit. If the specific sequence isn't
 found, `reduce` falls back to the base character's entry and says so via
 `resolvedVia: "base"`.
+
+Only `reduce` (and `toMatchingKey`) consult the sequence-specific entries.
+`isVariant` and `getVariants` accept the selector for input convenience but
+look relations up at the base-character level — the variant graph is
+recorded per character, not per sequence — so `getVariants("辻\u{E0100}")`
+equals `getVariants("辻")`, and two sequences sharing a base are the same
+character to `isVariant` (which therefore answers `false` for them, as it
+does for any character against itself).
 
 Standard Variation Selectors are accepted in the range **U+FE00–U+FE0D
 only**. U+FE0E and U+FE0F are Unicode's text and emoji *presentation*

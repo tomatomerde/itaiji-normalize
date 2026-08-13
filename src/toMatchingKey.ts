@@ -47,6 +47,11 @@ const VALID_NORMALIZE_MODES = new Set<unknown>(["NFC", "NFKC", false]);
  * normalize() and threw a bare RangeError naming no function or argument, and
  * passing a non-object as `options` (e.g. toMatchingKey("崎", "NFC")) was
  * ignored entirely and silently fell back to NFKC.
+ *
+ * Unknown keys are rejected for the same reason isVariant() rejects them: a
+ * misspelled key ({ normalize: "NFC" }, { unicodeNormalise: false }) is not
+ * caught by validating the value — the option is simply never read, and the
+ * caller silently gets NFKC while believing they opted out.
  */
 function resolveNormalizeMode(options: MatchingKeyOptions): NormalizeMode {
   if (options === null || typeof options !== "object") {
@@ -55,6 +60,11 @@ function resolveNormalizeMode(options: MatchingKeyOptions): NormalizeMode {
         options === null ? "null" : `a ${typeof options}`
       }`,
     );
+  }
+  for (const key of Object.keys(options)) {
+    if (key !== "unicodeNormalize") {
+      throw new TypeError(`toMatchingKey() received an unknown option ${JSON.stringify(key)}`);
+    }
   }
   const mode = options.unicodeNormalize;
   if (mode === undefined) return "NFKC";
@@ -153,9 +163,9 @@ function walk(char: string, mode: NormalizeMode, visited: Set<string>, budget: B
  * This is why 渡邉 matches 渡辺. Before this, 渡邊 matched and 渡邉 did not,
  * which is worse than either outcome on its own — the same surname sorted
  * into two buckets depending on which variant a record happened to use.
- * Measured over the shipped table, 345 of 898 tied characters resolve this
- * way; the remaining 553 genuinely disagree and are still reported
- * "ambiguous".
+ * Measured over the shipped table (default NFKC), 343 of the 806 keys whose
+ * candidates tie resolve this way; the remaining 463 genuinely disagree and
+ * are still reported "ambiguous". Pinned by test/data-invariants.test.ts.
  */
 function resolveTie(
   tied: string[],
