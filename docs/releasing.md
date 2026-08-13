@@ -204,20 +204,39 @@ npm は公開されたバージョンを永久に保持し、unpublish は最初
 2. `CHANGELOG.md` のそのバージョンの `## <version> — unreleased` 見出しを実際の日付に置き換える。
    例: `## 0.1.0 — 2026-08-12`。`unreleased` のままだとワークフローは公開を拒み、GitHub Release
    の本文はこのセクションから来る。両方の変更をコミットする。
-3. `git tag v<version> && git push origin v<version>`。
+3. リリースを切る。**セッションから切るときは `Release` ワークフローを `cut_release: true` で
+   dispatch する**（`dry_run` は指定しても上書きされ、その旨が notice に出る）:
+
+   ```sh
+   gh workflow run release.yml -f cut_release=true
+   ```
+
+   タグは `package.json` から `v<version>` として導出され、**publish が通った後に**
+   `gh release create --target <commit>` がタグと GitHub Release をまとめて作る。
+   手で `git tag v<version> && git push origin v<version>` してもよい（挙動は同じ）。
+
+   **タグ push は「公開の承認」ではない。** セッションの資格情報ではタグを push できない
+   （403）ので、それを必須にすると毎回のリリースに人間が挟まる。承認は依頼の時点で済んで
+   いるという前提に立ち、公開前の検査はワークフロー自身が持つ。なお `GITHUB_TOKEN` が
+   作ったタグは新しい run を起動しない（GitHub の再帰防止）ので、run は1本で完結する。
 4. run を見届ける。ステップサマリーにはリリースプラン（trigger, dry_run, version, dist-tag）と
    tarball の全ファイル一覧が載る。green でも読むこと。
 
 ワークフロー実行時にそのバージョンが既に registry にある場合 — 例えば部分的な失敗の後にタグを
 再 push した場合 — publish ステップは `npm view` でそれを検知し、エラーにせずスキップするので、
-再実行は安全である。
+再実行は安全である。GitHub Release も同じで、そのタグの Release が既にあれば `gh release view`
+で検知してそのまま残す。
+
+publish が走った run の ref がそのまま provenance に載るので、**タグ push なら
+`refs/tags/v<version>`、`cut_release` の dispatch なら `refs/heads/main`** になる。
+指しているコミットは同じで、どちらも GitHub Actions が署名した本物の attestation。
 
 ## Dry run
 
-Actions タブ → **Release** → **Run workflow**、`dry_run` は `true` のまま。`npm publish` 以外の
-すべてが、そのときディスク上にあるバージョンに対して同一に実行される。タグがないため、
-バージョンと CHANGELOG のガードは適用されない — だからこそバージョンと dist-tag がサマリーに
-印字される。間違っていれば、実害が出る前に見えるように。
+Actions タブ → **Release** → **Run workflow**、`dry_run` は `true`、`cut_release` は `false`
+のまま。`npm publish` 以外のすべてが、そのときディスク上にあるバージョンに対して同一に
+実行される。タグがないため、バージョンと CHANGELOG のガードは適用されない — だからこそ
+バージョンと dist-tag がサマリーに印字される。間違っていれば、実害が出る前に見えるように。
 
 **実リリースの前に必ず1回走らせ、読むこと。** 過去の green run はこのコミットについての証拠に
 ならない: 姉妹プロジェクトのリリースワークフローは何か月も構造上 green のままで、初めて実際に
