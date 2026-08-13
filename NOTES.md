@@ -20,9 +20,9 @@ GitHub はコミットメッセージ中の `#N` を自動リンクするので�
 
 **現在地**: `main` に v0.1.0 相当(旧 PR #1)、旧 PR #2、そして**ラウンド6**
 (旧 PR #3 のレビュー + `pickUnique` 検証 + その対応)がマージ済み。
-**npm 公開済み**: `itaiji-normalize@0.1.1`（最新。0.1.0 は 2026-08-10、0.1.1 は
-2026-08-12、いずれも provenance attestation 付き）。ラウンド9(公開後詳細
-レビュー、2026-08-13)の修正が `0.1.2` として出る予定——下の「ラウンド9」参照。
+**npm 公開済み**: `itaiji-normalize@0.1.2`（最新。0.1.0 は 2026-08-10、0.1.1 は
+2026-08-12、0.1.2 はラウンド9の修正で 2026-08-13、いずれも provenance
+attestation 付き）。詳細は下の「ラウンド9」参照。
 
 **先に読むべき事故**: PR #2 と PR #3 は**互いを含まない並行ブランチ**で、
 両方が NOTES 上で「ラウンド5」を名乗り、**同じ指摘に別々の解**を出していた
@@ -360,6 +360,18 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 ### 残っているもの
 
+- **`v0.1.2` の git タグと GitHub Release が未作成（npm への公開自体は完了）。**
+  0.1.2 は release ワークフローの workflow_dispatch（dry_run=false、run
+  `31654224256`）で 2026-08-13 に publish された。レビューを行った作業環境の
+  push 権限が作業ブランチに限定されており、タグを push できなかったため
+  （HTTP 403、組織ポリシー）。次の3行を人間が実行すればタグ push の run が
+  「npm に既にある」ことを検知して publish をスキップし、GitHub Release だけを
+  作る（ワークフローが文書化している再実行経路）:
+  ```sh
+  git fetch origin main
+  git tag v0.1.2 b685c687d572515c23333a06f33d5dce824d29a8
+  git push origin v0.1.2
+  ```
 - **`NPM_TOKEN` は削除済み（2026-08-12）。** trusted publishing 経由のリリースが
   `v0.1.1`（run `31558135329`）で実際に通り——
   `Signed provenance statement with source and build information from GitHub Actions`
