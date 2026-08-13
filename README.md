@@ -296,9 +296,49 @@ isVariant("靱", "靭");
 isVariant("桝", "枡");
 ```
 
+**`isVariant` returning `true` here doesn't mean the two fold to the same
+`toMatchingKey` key.** 猫 and 貓 are each already a fixed point — every
+character reduces to itself — so `toMatchingKey("猫").key` is `"猫"` and
+`toMatchingKey("貓").key` is `"貓"`: two different keys. This is the same
+split as `reduce`/`toMatchingKey` above, one level up: `isVariant` reports a
+direct relation, `toMatchingKey` reports where reduction lands, and
+co-candidacy supplies the first without giving `toMatchingKey` anything to
+reduce. Working as designed, not a bug — MJ only records a shrink relation
+for a character that needs one, and neither 猫 nor 貓 does.
+
 34 characters have nothing but inferred edges, so the strict setting leaves
 them with no variants at all. Recorded relations are unaffected either way:
 沢–澤, 辺–邊, 斉–齊, 竜–龍, 桜–櫻, 国–國, 髙–高, 﨑–崎 are `true` in both.
+
+Within those 2,999 inferred edges, **1,427 (47.6%) carry
+`basis: ["moj-notice-582-appendix-4"]` alone** — the same shape as
+`isVariant("井", "牛")` above: the notice ranking a third, rarer glyph's
+candidates against each other, not a statement about the two characters
+themselves. A sample pulled from that layer turned up no plausible variant
+pairs (not exhaustively checked, so treat this as a sampling result, not a
+count).
+
+You don't have to choose between all 2,999 and none: `getVariants` already
+exposes enough to drop just that layer:
+
+```ts
+function dropNotice582OnlyLayer(char: string) {
+  return getVariants(char).filter(
+    (v) => !(v.inferred && v.basis.length === 1 && v.basis[0] === "moj-notice-582-appendix-4"),
+  );
+}
+
+dropNotice582OnlyLayer("井").map((v) => v.char); // ["㐄", "㐩"] — 牛 dropped
+dropNotice582OnlyLayer("猫").map((v) => v.char); // ["貓"] — kept: basis also has family-register-notice
+```
+
+None of the pairs above are affected — their `basis` always carries
+`jis-inclusion-rule` and `family-register-notice` alongside the notice, so
+`basis.length === 1` never matches them. This sits between the two
+`includeInferred` values: `true` keeps all 2,999 inferred edges, `false`
+drops all of them (real pairs included), and this filter drops only the
+sub-layer sampling didn't find real pairs in — a middle setting already
+reachable from the data `getVariants` returns today.
 
 Use `false` when a match is an assertion someone could be held to, and the
 default when you are expanding a search.

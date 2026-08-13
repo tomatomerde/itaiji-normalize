@@ -259,9 +259,48 @@ isVariant("靱", "靭");
 isVariant("桝", "枡");
 ```
 
+**ここで `isVariant` が `true` を返しても、`toMatchingKey` のキーが揃うとは
+限らない。** 猫 と 貓 はどちらもすでに不動点(自分自身に縮退する文字)なので、
+`toMatchingKey("猫").key` は `"猫"`、`toMatchingKey("貓").key` は `"貓"` の
+まま——2つの異なるキーになる。これは上の `reduce`/`toMatchingKey` の役割
+分担と同じ非対称が一段上で起きているだけ: `isVariant` は直接関係を報告し、
+`toMatchingKey` は縮退の行き先を報告する。共候補であることは前者を成立させ
+るが、`toMatchingKey` が辿れるホップは与えない。設計どおりの挙動であって
+不具合ではない——MJ は縮退が必要な字にしか縮退関係を記録せず、猫 も 貓 も
+その必要が無い字だから。
+
 推論エッジしか持たない文字は 34 文字あり、厳しい側にするとこれらは異体字が
 1つも無くなる。記録された関係はどちらでも無傷である(沢―澤、辺―邊、斉―齊、
 竜―龍、桜―櫻、国―國、髙―高、﨑―崎 はどちらも `true`)。
+
+この 2,999 件の推論エッジのうち、**1,427 件(47.6%)は
+`basis: ["moj-notice-582-appendix-4"]` 単独**——上の
+`isVariant("井", "牛")` と同じ型で、告示582号が第三の(より希少な)字の
+候補どうしを順位付けしているだけであり、2字自身についての言明ではない。
+この層からサンプルを取って調べたところ、妥当な異体字対は見つからなかった
+(全数確認はしていないので、あくまでサンプル調査の結果として扱ってほしい)。
+
+2,999 件全部か0件かの二択である必要はない: `getVariants` が返す情報だけで、
+この層だけを落とせる:
+
+```ts
+function dropNotice582OnlyLayer(char: string) {
+  return getVariants(char).filter(
+    (v) => !(v.inferred && v.basis.length === 1 && v.basis[0] === "moj-notice-582-appendix-4"),
+  );
+}
+
+dropNotice582OnlyLayer("井").map((v) => v.char); // ["㐄", "㐩"] —— 牛 が落ちる
+dropNotice582OnlyLayer("猫").map((v) => v.char); // ["貓"] —— 残る: basis に family-register-notice も含むため
+```
+
+上に挙げた対はどれも影響を受けない——`basis` には告示582と並んで常に
+`jis-inclusion-rule` と `family-register-notice` が入っているため、
+`basis.length === 1` の条件に当たらない。これは `includeInferred` の2値の
+中間に位置する: `true` は推論エッジ 2,999 件を全部残し、`false` は(上の
+本物の対も含めて)全部落とすが、この絞り込みはサンプル調査で妥当な対が
+見つからなかった層だけを落とす——`getVariants` が返すデータから今すぐ
+組める中間の強さの選択肢。
 
 一致が「誰かが責任を問われうる主張」になる場面では `false` を、
 検索を広げたいだけなら既定を使うとよい。
