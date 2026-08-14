@@ -362,20 +362,21 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
 
 ### 残っているもの
 
-- **`v0.1.2` / `v0.1.3` / `v0.1.4` の git タグと GitHub Release が未作成
-  （npm への公開自体は3つとも完了）。** いずれも release ワークフローの
-  workflow_dispatch（dry_run=false）で 2026-08-13 に publish された。レビューを
-  行った作業環境の push 権限が作業ブランチに限定されており、タグを push できな
-  かったため（HTTP 403、組織ポリシー）。次を人間が実行すればタグ push の run が
-  「npm に既にある」ことを検知して publish をスキップし、GitHub Release だけを
-  作る（ワークフローが文書化している再実行経路）。**1行ずつ実行すること**:
-  ```sh
-  git fetch origin main
-  git tag v0.1.2 b685c687d572515c23333a06f33d5dce824d29a8
-  git tag v0.1.3 20a2f9c5afadc032e9cc08fa609b2819b1a73d83
-  git tag v0.1.4 14e0db946e198a7f2fdcee45b5c0025be288f1e8
-  git push origin v0.1.2 v0.1.3 v0.1.4
-  ```
+- ~~**タグと GitHub Release が未作成**~~ **解決（2026-08-13）。ただし
+  `v0.1.2` と `v0.1.3` はタグ無しのまま公開されている（所有者判断）。**
+  経緯: `0.1.2`〜`0.1.4` を `workflow_dispatch` の **`dry_run: false` だけ**で
+  回したため、npm には公開されるのにタグと Release は作られない経路を3回とも
+  通っていた。`docs/releasing.md` は「**セッションから切るときは `cut_release: true`**」
+  と明記しており、`cut_release` を使えばワークフロー自身が `gh release create --target`
+  でタグごと作る。**セッション冒頭に読んだ手順書を、その後 main が動いたのに読み
+  直さなかったのが原因**（`cut_release` は作業中にマージされた PR で追加された）。
+  `v0.1.4` は `cut_release: true` で打ち直し済み（タグ `1bf5965`、Release 本文は
+  CHANGELOG から自動生成）。
+  **`v0.1.2` / `v0.1.3` は遡って作らないと決めた**——npm の provenance が各版の
+  元コミットを署名付きで記録しており追跡は可能なため。対応するコミットは
+  `0.1.2` = `b685c687d572515c23333a06f33d5dce824d29a8`、
+  `0.1.3` = `20a2f9c5afadc032e9cc08fa609b2819b1a73d83`。
+  **次にリリースを切るときは必ず `cut_release: true` を使うこと。**
 - **`NPM_TOKEN` は削除済み（2026-08-12）。** trusted publishing 経由のリリースが
   `v0.1.1`（run `31558135329`）で実際に通り——
   `Signed provenance statement with source and build information from GitHub Actions`
