@@ -343,6 +343,12 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
   呼び出し側で対処できる。「曖昧さを隠さない」という本プロジェクトの差別化点に一致する
 - **テーブルのコンパクト再符号化は v1 では見送り**。現状 gzip 約562KB で
   目標(1MB未満)は満たしており、README の Roadmap に未実装として明記済み
+- **デモページは npm 公開版を固定して読み込む**(2026-08-16)。作業ツリーを
+  ビルドして載せると、まだ誰も `npm install` で入手できない挙動を宣伝することになる。
+  代償として、**リリースのたびに `demo/pinned-version.txt` を上げる作業が要る**
+  （`docs/releasing.md` に手順として入れてある。忘れても赤くならず、古い挙動を
+  見せ続けるだけなので、`demo/build.sh` がレジストリの `latest` との食い違いを
+  warning で出す）。判断の一覧は `demo/README.md`
 
 ## 人間の操作待ちの項目
 
@@ -393,6 +399,19 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
     ガードが仕事をしたのではなく、ガードが要る状況がまだ起きていない、というのが正確
 - ~~**マージ済みブランチが6本残っている**~~ **完了**（2026-08-12 の実確認で、
   リモートブランチは `main` のみ）
+- **GitHub Pages の有効化**（2026-08-16 に発生）。デモを配るために Pages の Source を
+  「GitHub Actions」にする必要がある。**セッションからは設定できない**——
+  `POST /repos/{owner}/{repo}/pages` も `PATCH /repos/{owner}/{repo}` も、
+  実行環境のプロキシが `Access to this GitHub API path is not permitted through this proxy`
+  と `Repository settings writes are not permitted through this proxy` で拒否する
+  （トークンの権限ではなく経路の制限）。**`pages.yml` の
+  `actions/configure-pages@v6`（`enablement: true`）が、ワークフロー側の `GITHUB_TOKEN` で
+  同じことを試みる**ので、これが通れば人手は要らない。通らなかった場合だけ、
+  Settings → Pages → Source を「GitHub Actions」にしてから、Actions タブの
+  **Demo (GitHub Pages)** を `workflow_dispatch` で1回回す
+- **リポジトリの Website 欄にデモ URL を入れる**（上と同じ理由でセッションからは書けない）。
+  `package.json` の `homepage` は設定済みだが、GitHub のリポジトリ画面右上に出るのは
+  こちらで、npm 側は次の publish まで反映されない
 ブランチ保護と GitHub の description / topics は 2026-08-10 に設定済み。保護の内容は
 `main` への直 push 禁止、required checks は `test (20)` / `test (22)` / `browser` /
 `workers` / `smoke-node18`、`strict: false`、`enforce_admins: true`、承認0件。

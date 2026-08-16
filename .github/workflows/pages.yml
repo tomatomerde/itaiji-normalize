@@ -1,0 +1,90 @@
+name: Demo (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - 'scripts/verify-demo.mjs'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'demo/**'
+      - 'scripts/verify-demo.mjs'
+      - '.github/workflows/pages.yml'
+  # Lets a redeploy be triggered by hand after a release bumps the pin, and
+  # after Pages is enabled for the first time.
+  workflow_dispatch:
+
+# The paths filters above are safe here because this workflow is not a
+# required status check. Making a paths-filtered workflow required leaves
+# every pull request that misses the filter waiting forever on a check that
+# was never created.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # configure-pages needs this to turn the site on the first time.
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # `enablement: true` attempts to switch the repository's Pages source to
+      # GitHub Actions over the API. If the token is not allowed to, this step
+      # fails and the repository owner has to flip it once by hand:
+      # Settings -> Pages -> Source -> GitHub Actions.
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+
+      # Fetches the published package from the registry — the demo runs what
+      # `npm install itaiji-normalize` gives a visitor, not a build of this
+      # working tree, so that the page cannot show behaviour the released
+      # version does not have.
+      - name: Build the demo
+        run: ./demo/build.sh
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # The page tells visitors it makes no requests once loaded, and that
+      # results appear without typing. Both are asserted in a real browser
+      # here, so a broken demo never reaches Pages.
+      - name: Verify the demo in a browser
+        run: npm run test:demo
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: demo/_site
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

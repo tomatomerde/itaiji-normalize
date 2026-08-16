@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>itaiji-normalize デモ — 異体字の縮退・名寄せキーをブラウザだけで試す</title>
+<meta name="description" content="MJ縮退マップ（IPA）を根拠に異体字を縮退し、名寄せキーを作る npm ライブラリ itaiji-normalize のデモ。入力はブラウザの外に出ません。">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="page-head">
+  <h1>itaiji-normalize <span class="version">v__ITAIJI_VERSION__</span></h1>
+  <p class="lead">
+    「渡邉」「渡邊」「渡辺」を同じ人として扱いたい。でも、根拠なく1つに決めてほしくはない。
+    <strong>MJ縮退マップ（IPA）を根拠に</strong>異体字を縮退し、決められないときは
+    <strong>決めずに理由を返す</strong> TypeScript ライブラリです。
+  </p>
+  <p class="links">
+    <a href="https://www.npmjs.com/package/itaiji-normalize">npm</a>
+    <a href="https://github.com/tomatomerde/itaiji-normalize">GitHub</a>
+    <a href="https://github.com/tomatomerde/itaiji-normalize#readme">README</a>
+  </p>
+  <p class="offline" id="offline-note">
+    このページの変換は<strong>すべてブラウザの中</strong>で実行しています。
+    入力した文字はどこにも送信しません。
+    <span class="offline-detail">
+      ページを開いた直後に、npm 公開版の itaiji-normalize v__ITAIJI_VERSION__
+      （gzip 約 __BUNDLE_GZIP_KB__ KB）を読み込みます。<strong>その後は何を入力しても
+      リクエストは発生しません</strong>——DevTools の Network タブを開いたまま操作して確かめてください。
+    </span>
+  </p>
+  <p class="font-note">
+    表示について: 異体字はお使いの環境のフォント次第で <code>□</code> になったり、
+    別の字形で描かれたりします。<strong>それは表示の問題で、判定はコードポイントに対して
+    行っています</strong>——このページが結果に U+ の値を併記しているのはそのためです。
+  </p>
+</header>
+
+<main>
+
+<p id="loading" class="loading" role="status">ライブラリを読み込んでいます…</p>
+<p id="load-error" class="load-error" role="alert" hidden></p>
+
+<section class="panel" id="panel-text" hidden>
+  <h2>1. 文字列を名寄せキーにする<code>toMatchingKey()</code></h2>
+  <p class="panel-lead">
+    1行に1件。同じキーになった行が同じグループにまとまります。
+    縮退できなかった文字は<strong>キーの中でそのまま残り</strong>、理由つきで
+    <code>unresolved</code> に報告されます。
+  </p>
+
+  <div class="presets" id="text-presets"></div>
+
+  <label class="field">
+    <span class="field-label">入力（1行1件）</span>
+    <textarea id="text-input" rows="7" spellcheck="false" autocomplete="off"></textarea>
+  </label>
+
+  <div id="text-output" class="output"></div>
+</section>
+
+<section class="panel" id="panel-char" hidden>
+  <h2>2. 1文字の縮退候補を根拠つきで見る<code>reduce()</code></h2>
+  <p class="panel-lead">
+    候補・その候補を裏づける<strong>根拠の区分</strong>・一意選択の結果（<code>unique</code>）・
+    どの表の項目で解決したか（<code>resolvedVia</code>）を返します。
+    異体字セレクタ（IVS/SVS）を付けた入力も受け付けます。
+  </p>
+
+  <div class="presets" id="char-presets"></div>
+
+  <label class="field field-inline">
+    <span class="field-label">入力（1文字。異体字セレクタ1つまで可）</span>
+    <input id="char-input" type="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+  </label>
+
+  <div id="char-output" class="output"></div>
+</section>
+
+<section class="panel panel-note">
+  <h2>このライブラリが「しない」こと</h2>
+  <ul class="notes">
+    <li>
+      <strong>根拠なく1つに決めない。</strong> 候補が複数あって、法務省告示の順位・戸籍通達の
+      経由数・常用漢字/人名用漢字のいずれでも決着しなければ、<code>unique</code> は
+      <code>null</code> を返します。上のデモで <code>ambiguous</code> が出るのはこの場合です。
+    </li>
+    <li>
+      <strong>逆変換（新字→特定の旧字）は提供しません。</strong> 「辺」を「邉」と「邊」の
+      どちらに戻すかを決める根拠は、データの側に存在しないためです。
+    </li>
+    <li>
+      <strong>戸籍・法務・金融用途での同一性判断は保証しません。</strong> このライブラリが
+      保証しているのは「決められないときに決めないこと」であって、「答えが正しいこと」では
+      ありません。人が確認する工程の前段として使ってください。
+    </li>
+  </ul>
+</section>
+
+<section class="panel panel-note">
+  <h2>使う</h2>
+<pre class="install"><code>npm install itaiji-normalize@__ITAIJI_VERSION__</code></pre>
+<pre class="install"><code>import { toMatchingKey, reduce } from "itaiji-normalize";
+
+toMatchingKey("渡邉 太郎").key;  // "渡辺 太郎"
+reduce("朢").unique;             // null （候補が2つあり決められない）</code></pre>
+  <p class="panel-lead">
+    依存ゼロ。データは全部同梱で、実行時に外部へ取りに行きません。
+    Node 18+ / ブラウザ / Cloudflare Workers で動きます。
+  </p>
+</section>
+
+</main>
+
+<footer class="page-foot">
+  <h2>出典とライセンス</h2>
+  <p>
+    データ: 文字情報技術促進協議会／独立行政法人情報処理推進機構（IPA）
+    <a href="https://moji.or.jp/mojikiban/mjkanjimap/">MJ縮退マップ</a>
+    （<a href="https://creativecommons.org/licenses/by-sa/2.1/jp/">CC BY-SA 2.1 日本</a>）。
+    同梱スナップショットの取得日・版・ハッシュは
+    <a href="./vendor/PROVENANCE.md">PROVENANCE.md</a> にあります。
+  </p>
+  <p>
+    コードは <a href="./vendor/LICENSE.txt">MIT</a>、同梱データは
+    <a href="./vendor/LICENSE-DATA.txt">CC BY-SA 2.1 JP</a> の二重ライセンスです。
+    データから派生したものには SA（継承）が及びます。
+  </p>
+  <p class="foot-meta">
+    このページは npm 公開版 itaiji-normalize v__ITAIJI_VERSION__ を読み込んでいます。
+    ページのソースは <a href="https://github.com/tomatomerde/itaiji-normalize/tree/main/demo">リポジトリの demo/</a>。
+  </p>
+</footer>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
