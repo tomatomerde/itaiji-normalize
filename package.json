@@ -64,7 +64,7 @@
     "playwright": "^1.62.1",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "workerd": "^1.20260804.1"
   },
