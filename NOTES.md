@@ -404,11 +404,21 @@ tier 2 = その他(JIS包摂を含む)なので、**両端が入れ替わって�
   `POST /repos/{owner}/{repo}/pages` も `PATCH /repos/{owner}/{repo}` も、
   実行環境のプロキシが `Access to this GitHub API path is not permitted through this proxy`
   と `Repository settings writes are not permitted through this proxy` で拒否する
-  （トークンの権限ではなく経路の制限）。**`pages.yml` の
-  `actions/configure-pages@v6`（`enablement: true`）が、ワークフロー側の `GITHUB_TOKEN` で
-  同じことを試みる**ので、これが通れば人手は要らない。通らなかった場合だけ、
-  Settings → Pages → Source を「GitHub Actions」にしてから、Actions タブの
-  **Demo (GitHub Pages)** を `workflow_dispatch` で1回回す
+  （トークンの権限ではなく経路の制限）。
+  **ワークフロー側からも駄目だと分かった（2026-08-16 実測、run `31961251448`）**——
+  `pages.yml` の `actions/configure-pages@v6`（`enablement: true`）を `main` で
+  走らせたら `Create Pages site failed. Error: Resource not accessible by integration`
+  で落ちた。Pages サイトの作成にはリポジトリの admin 権限が要り、`GITHUB_TOKEN` は
+  それを持たない。**自動化の余地は無く、1回だけ人間が触る必要がある**:
+
+  1. Settings → Pages → Source を「GitHub Actions」に
+  2. Actions タブ → **Demo (GitHub Pages)** → Run workflow（`main`）
+
+  有効化されるまで `pages.yml` は deploy ジョブで赤くなる。build とブラウザ検証は
+  その手前で緑のまま通るので、**赤は「デモが壊れている」ではなく「配れない」を
+  意味する**（`Say what a human has to do` ステップが理由を注釈で出す）。
+  **有効化したら README（英日）にデモへのリンクを足すこと。** URL が生きていることを
+  確認できないうちは公開ページへのリンクを書かない、という理由でいまは入れていない
 - **リポジトリの Website 欄にデモ URL を入れる**（上と同じ理由でセッションからは書けない）。
   `package.json` の `homepage` は設定済みだが、GitHub のリポジトリ画面右上に出るのは
   こちらで、npm 側は次の publish まで反映されない

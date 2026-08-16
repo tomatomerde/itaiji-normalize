@@ -1,8 +1,12 @@
 # デモページ
 
-`https://tomatomerde.github.io/itaiji-normalize/` で公開している、ブラウザだけで動く
-デモの元ファイル。`.github/workflows/pages.yml` が build → ブラウザ検証 → Pages への
-デプロイまでを行う。
+ブラウザだけで動くデモの元ファイル。`.github/workflows/pages.yml` が
+build → ブラウザ検証 → GitHub Pages へのデプロイまでを行う。
+公開先は `https://tomatomerde.github.io/itaiji-normalize/`。
+
+> **まだ公開されていない（2026-08-16）。** リポジトリの Pages が有効になっていないため
+> deploy ジョブだけが落ちる。有効化はワークフローからはできない（サイトの作成には
+> admin 権限が要る）。手順は `NOTES.md` の「人間の操作待ちの項目」。
 
 ## 手元で動かす
 
