@@ -33,9 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # configure-pages needs this to turn the site on the first time.
-      pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -43,16 +40,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-
-      # `enablement: true` attempts to switch the repository's Pages source to
-      # GitHub Actions over the API. If the token is not allowed to, this step
-      # fails and the repository owner has to flip it once by hand:
-      # Settings -> Pages -> Source -> GitHub Actions.
-      - name: Configure Pages
-        if: github.event_name != 'pull_request'
-        uses: actions/configure-pages@v6
-        with:
-          enablement: true
 
       # Fetches the published package from the registry — the demo runs what
       # `npm install itaiji-normalize` gives a visitor, not a build of this
@@ -86,5 +73,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Tries to switch the repository's Pages source to GitHub Actions over
+      # the API. Measured 2026-08-16: this fails with `Resource not accessible
+      # by integration`, because creating a Pages *site* needs repository admin
+      # rights and GITHUB_TOKEN never has them. It is kept because it costs one
+      # second and succeeds once the site exists — and because failing here,
+      # after the demo has already been built and verified, keeps the blockage
+      # separate from "the demo is broken".
+      - name: Configure Pages
+        id: configure
+        continue-on-error: true
+        uses: actions/configure-pages@v6
+        with:
+          enablement: true
+
+      - name: Say what a human has to do
+        if: steps.configure.outcome == 'failure'
+        run: |
+          echo "::error title=GitHub Pages is not enabled::The demo was built and verified, but it cannot be published until Pages is turned on. A repository admin has to do it once: Settings -> Pages -> Source -> GitHub Actions. Then re-run this workflow (Actions -> Demo (GitHub Pages) -> Run workflow)."
+          exit 1
+
       - id: deployment
         uses: actions/deploy-pages@v5
