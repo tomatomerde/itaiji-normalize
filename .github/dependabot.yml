@@ -1,0 +1,24 @@
+version: 2
+
+# Monthly and grouped on purpose. A solo maintainer merges these by hand, so
+# the cost of an update is the review, not the version bump; weekly ungrouped
+# updates turn into a queue nobody reads.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        patterns: ['*']

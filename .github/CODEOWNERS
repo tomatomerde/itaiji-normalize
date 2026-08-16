@@ -1,0 +1,5 @@
+# Single maintainer. This file exists so review requests route somewhere; the
+# branch protection on main does not require code-owner approval (a solo
+# maintainer cannot approve their own pull request, so requiring it would make
+# every pull request permanently unmergeable).
+* @tomatomerde

@@ -1,0 +1,30 @@
+name: Question
+description: How do I do X, or is this behavior intended?
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please ask in English or Japanese — either is fine.
+
+        Before asking: the README documents the known limits of this library,
+        and several behaviors that look like bugs are deliberate — this project
+        prefers reporting an ambiguity to guessing a value. If the answer you
+        need is "why does it refuse to answer", the README's limitations
+        section is the fastest path.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What you are trying to do
+      description: >
+        The surrounding task, not just the call. Knowing whether this is for
+        printing envelopes, deduplicating a customer list, or scheduling
+        deliveries usually changes the answer.
