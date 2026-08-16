@@ -1,0 +1,346 @@
+/*
+ * No web fonts and no external stylesheets on purpose: the page claims it
+ * makes no requests once loaded, and a font request would make that a lie.
+ * Kanji rendering is left to the reader's system fonts, which is also the
+ * only way an IVS-aware font can show its own glyph.
+ */
+
+:root {
+  --bg: #fbfaf8;
+  --fg: #1d1c1a;
+  --muted: #6b6862;
+  --line: #ddd8d0;
+  --panel: #ffffff;
+  --accent: #1c5d99;
+  --warn-bg: #fdf5e6;
+  --warn-line: #d9a441;
+  --warn-fg: #7a5310;
+  --ok: #2f6f43;
+  --chip-bg: #eef1f5;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17161a;
+    --fg: #eae7e1;
+    --muted: #a29d95;
+    --line: #35323a;
+    --panel: #1f1e23;
+    --accent: #7db3e0;
+    --warn-bg: #2c2415;
+    --warn-line: #a9803a;
+    --warn-fg: #e8c281;
+    --ok: #77c093;
+    --chip-bg: #2b2933;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 1rem 4rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  line-height: 1.75;
+  font-size: 16px;
+}
+
+.page-head, main, .page-foot {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.page-head { padding: 2.5rem 0 1rem; }
+
+h1 {
+  font-size: 1.7rem;
+  margin: 0 0 .4rem;
+  letter-spacing: .01em;
+}
+
+.version {
+  font-size: .95rem;
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lead { margin: 0 0 1rem; }
+
+.links { margin: 0 0 1.2rem; display: flex; gap: 1.1rem; flex-wrap: wrap; }
+.links a, .page-foot a { color: var(--accent); }
+
+.offline {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: .8rem 1rem;
+  margin: 0;
+}
+.offline-detail {
+  display: block;
+  margin-top: .4rem;
+  font-size: .9rem;
+  color: var(--muted);
+}
+
+.font-note {
+  font-size: .85rem;
+  color: var(--muted);
+  margin: .8rem 0 0;
+}
+.font-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--chip-bg);
+  border-radius: 3px;
+  padding: 0 .25rem;
+}
+
+.loading, .load-error { padding: 2rem 0; color: var(--muted); }
+.load-error { color: var(--warn-fg); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.3rem 1.4rem;
+  margin: 1.6rem 0;
+}
+
+.panel h2 {
+  font-size: 1.15rem;
+  margin: 0 0 .3rem;
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+.panel h2 code {
+  font-size: .85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.panel-lead { margin: 0 0 1rem; font-size: .93rem; color: var(--muted); }
+
+.presets { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: 1rem; }
+
+.preset {
+  font: inherit;
+  font-size: .88rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .3rem .85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: .45rem;
+  line-height: 1.5;
+}
+.preset:hover { border-color: var(--accent); }
+.preset-label { font-weight: 600; }
+.preset-note { font-size: .78rem; color: var(--muted); }
+
+.field { display: block; }
+.field-label {
+  display: block;
+  font-size: .82rem;
+  color: var(--muted);
+  margin-bottom: .3rem;
+}
+
+textarea, input[type="text"] {
+  font: inherit;
+  width: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: .6rem .75rem;
+  line-height: 1.9;
+}
+textarea:focus, input[type="text"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field-inline input[type="text"] { font-size: 1.6rem; line-height: 2; }
+
+.output { margin-top: 1.1rem; }
+
+.summary { font-size: .85rem; color: var(--muted); margin: 0 0 .7rem; }
+.empty { color: var(--muted); margin: .4rem 0; }
+.error { color: var(--warn-fg); }
+
+.group {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: .7rem .9rem .9rem;
+  margin-bottom: .8rem;
+}
+
+.group-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.group-label {
+  font-size: .72rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.group-count { font-size: .8rem; color: var(--muted); }
+
+.glyph { font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; }
+.glyph-key { font-size: 1.5rem; font-weight: 600; }
+.glyph-big { font-size: 3.4rem; line-height: 1.2; }
+.glyph-cand { font-size: 2rem; }
+.glyph-small { font-size: 1.3rem; }
+.glyph-var {
+  font-size: 1.35rem;
+  padding: 0 .18em;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+.glyph-inferred { border: 1px dashed var(--muted); }
+
+.members { list-style: none; margin: .5rem 0 0; padding: 0; }
+.members > li {
+  padding: .35rem 0;
+  border-top: 1px solid var(--line);
+}
+.member-line { font-size: 1.05rem; }
+
+.normalized { display: block; font-size: .82rem; margin-top: .2rem; }
+.kv-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+  color: var(--muted);
+  margin-right: .45rem;
+}
+.kv-value { margin-right: .45rem; }
+.kv-note { color: var(--muted); font-size: .82rem; }
+
+.ok { color: var(--ok); font-size: .85rem; margin: .5rem 0 0; }
+
+.warn {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius);
+  padding: .55rem .75rem;
+  margin: .45rem 0 .3rem;
+}
+.warn-head { margin: 0; font-size: .85rem; color: var(--warn-fg); }
+
+.unresolved { list-style: none; margin: .4rem 0 0; padding: 0; }
+.unresolved > li {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex-wrap: wrap;
+  padding: .2rem 0;
+}
+.reason, .via, .null-literal {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .8rem;
+  background: var(--chip-bg);
+  border-radius: 4px;
+  padding: .05rem .4rem;
+}
+.reason-text { font-size: .85rem; }
+.where {
+  font-size: .75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+
+.char-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.char-meta { min-width: 0; }
+.char-cp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .82rem;
+  color: var(--muted);
+}
+.char-via { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+
+.unique {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ok);
+  border-radius: var(--radius);
+  padding: .5rem .8rem;
+  margin: 1rem 0;
+}
+.unique-null {
+  border-left-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+.unique-null .kv-note { color: var(--warn-fg); }
+
+.candidates { list-style: none; margin: 0; padding: 0; }
+.candidates > li {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  padding: .45rem 0;
+  border-top: 1px solid var(--line);
+}
+.cand-body { flex: 1; min-width: 0; }
+.cand-cp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .75rem;
+  color: var(--muted);
+}
+.cand-win {
+  font-size: .75rem;
+  color: var(--ok);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0 .5rem;
+  white-space: nowrap;
+}
+
+.chips { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+.chip {
+  font-size: .76rem;
+  background: var(--chip-bg);
+  border-radius: 4px;
+  padding: .05rem .45rem;
+  line-height: 1.7;
+}
+.chip-none { color: var(--muted); }
+
+.variants {
+  margin-top: 1rem;
+  padding-top: .7rem;
+  border-top: 1px solid var(--line);
+}
+.variant-chars { display: inline-flex; flex-wrap: wrap; gap: .2rem; margin-right: .5rem; }
+
+.panel-note h2 { margin-bottom: .6rem; }
+.notes { margin: 0; padding-left: 1.2rem; }
+.notes li { margin-bottom: .6rem; }
+
+.install {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: .7rem .9rem;
+  overflow-x: auto;
+  font-size: .85rem;
+  margin: 0 0 .8rem;
+}
+
+.page-foot {
+  border-top: 1px solid var(--line);
+  margin-top: 2.5rem;
+  padding-top: 1.2rem;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.page-foot h2 { font-size: .95rem; color: var(--fg); margin: 0 0 .5rem; }
+.page-foot p { margin: 0 0 .6rem; }
+.foot-meta { font-size: .8rem; }

@@ -5,3 +5,6 @@ dist/
 # Scratch worktrees some tooling creates inside the repo. Each one is a full
 # second checkout, so committing it would nest the repository inside itself.
 .claude/worktrees/
+
+# Built demo site (assembled by demo/build.sh from the published package).
+demo/_site/

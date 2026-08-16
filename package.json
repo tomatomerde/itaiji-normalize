@@ -41,7 +41,7 @@
     "LICENSE-DATA",
     "data/snapshot/PROVENANCE.md"
   ],
-  "homepage": "https://github.com/tomatomerde/itaiji-normalize#readme",
+  "homepage": "https://tomatomerde.github.io/itaiji-normalize/",
   "bugs": {
     "url": "https://github.com/tomatomerde/itaiji-normalize/issues"
   },
@@ -54,6 +54,8 @@
     "test": "vitest run",
     "test:dist": "vitest run --config vitest.dist.config.ts",
     "test:dist:cjs": "ITAIJI_DIST_FORMAT=cjs vitest run --config vitest.dist.config.ts",
+    "build:demo": "./demo/build.sh",
+    "test:demo": "node scripts/verify-demo.mjs",
     "test:browser": "node scripts/verify-browser.mjs",
     "test:workers": "node scripts/verify-workers.mjs",
     "typecheck": "tsc --noEmit",

@@ -267,6 +267,17 @@ Actions タブ → **Release** → **Run workflow**、`dry_run` は `true`、`cu
 への push ごとに、同じコミットの同じビルド済みバンドルに対して確認する。CI が red のコミット
 からリリースしないこと。
 
+## publish した後にやること: デモの固定バージョンを上げる
+
+`demo/pinned-version.txt` を新しいバージョンに書き換えて `main` に入れる。
+`demo/**` への push で `pages.yml` が走り、レジストリから新しい版を取り直して再デプロイする。
+
+**これはリリース手順の一部であって、任意の追従作業ではない。** デモは「訪問者が
+`npm install` して得るもの」を見せるという前提で作ってあり、固定が古いままだと、
+ページはもう最新ではない挙動を、最新であるかのように表示し続ける。忘れても赤くならないので
+（デプロイは古い版で普通に成功する）、`demo/build.sh` はレジストリの `latest` と食い違うときに
+warning を出すようにしてある。詳細は [`demo/README.md`](../demo/README.md)。
+
 ## カバーされないもの
 
 - `npm publish` 自体、provenance アテステーション、GitHub Release は実際の tag push でしか
