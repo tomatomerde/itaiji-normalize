@@ -7,6 +7,7 @@
 [![Node.js 18+ · browsers · Workers](https://img.shields.io/badge/runs%20on-Node%2018%2B%20%C2%B7%20browsers%20%C2%B7%20Workers-brightgreen.svg)](#インストール)
 [![module: ESM + CJS](https://img.shields.io/badge/module-ESM%20%2B%20CJS-blue.svg)](#インストール)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+[![demo: ブラウザで試す](https://img.shields.io/badge/demo-%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E3%81%A7%E8%A9%A6%E3%81%99-blue.svg)](https://tomatomerde.github.io/itaiji-normalize/)
 
 [English](./README.md) | **日本語**
 
@@ -17,6 +18,10 @@ IPA の**MJ縮退マップ**(ハードコード辞書ではなく公的データ
 Cloudflare Workers** でそのまま動く。全データを同梱し、ビルド時・実行時とも外部
 ネットワークへアクセスしない。(これらのランタイムはいずれもビルド成果物に対して
 CI で実行検証している。詳細は[サポート範囲](#サポート範囲)。)
+
+**[ブラウザで試す](https://tomatomerde.github.io/itaiji-normalize/)** — 公開版の
+パッケージをそのままページ内で動かしている。入力しながら DevTools の Network を
+見ると、読み込み後は1リクエストも出ていないことが確認できる。
 
 ## なぜ作ったか
 

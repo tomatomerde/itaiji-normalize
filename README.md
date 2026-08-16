@@ -7,6 +7,7 @@
 [![Node.js 18+ · browsers · Workers](https://img.shields.io/badge/runs%20on-Node%2018%2B%20%C2%B7%20browsers%20%C2%B7%20Workers-brightgreen.svg)](#install)
 [![module: ESM + CJS](https://img.shields.io/badge/module-ESM%20%2B%20CJS-blue.svg)](#install)
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)](./package.json)
+[![demo: try it in the browser](https://img.shields.io/badge/demo-try%20it%20in%20the%20browser-blue.svg)](https://tomatomerde.github.io/itaiji-normalize/)
 
 **English** | [日本語](./README.ja.md)
 
@@ -19,6 +20,10 @@ Dependency-free, shipped as both ESM and CommonJS, and runs unchanged on
 the package; nothing is fetched over the network at build or run time. (Each
 of those runtimes is exercised in CI against the built artifact — the details
 are under [Support and scope](#support-and-scope).)
+
+**[Try it in your browser](https://tomatomerde.github.io/itaiji-normalize/)** — the
+demo runs the published package client-side. Open DevTools' Network panel while
+you type: it makes no requests after the page has loaded.
 
 ## Why this exists
 
