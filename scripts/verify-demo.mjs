@@ -107,6 +107,17 @@ try {
   const reasons = await page.locator("#text-output .unresolved .reason").allTextContents();
   assert.ok(reasons.includes("ambiguous"), `expected an ambiguous case on load, got ${JSON.stringify(reasons)}`);
 
+  // The default sample contains 𠮷田 功 and 吉田 功 — same key, but 功 sits at a
+  // different offset in each because 𠮷 is a surrogate pair. Both offsets must
+  // be reported (a per-group instead of per-line result would show only one),
+  // and they must be labelled as UTF-16 code units rather than as an ordinal
+  // character count, which is what the surrogate pair makes wrong.
+  const offsets = await page.locator("#text-output .unresolved .where").allTextContents();
+  assert.ok(
+    offsets.some((t) => t.includes("オフセット 4（UTF-16")) && offsets.some((t) => t.includes("オフセット 3（UTF-16")),
+    `expected per-line UTF-16 offsets 4 and 3, got ${JSON.stringify(offsets)}`,
+  );
+
   // 3. The single-character panel rendered its default too.
   assert.equal((await page.locator("#char-output .glyph-big").textContent()).trim(), "﨑");
   assert.equal((await page.locator("#char-output .via").textContent()).trim(), "base");

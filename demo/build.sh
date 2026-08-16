@@ -15,8 +15,13 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 out="${1:-$here/_site}"
 version="$(tr -d '[:space:]' < "$here/pinned-version.txt")"
 
-if [ -z "$version" ]; then
-  echo "demo/pinned-version.txt is empty" >&2
+# The version is substituted into the page with sed, so a stray `/` (or a
+# leading `v`) would either break the substitution or quietly print a version
+# that does not exist. Matched with bash's own `=~` rather than piping into
+# `grep -q`: under `set -o pipefail` an early-exiting reader kills the writer
+# with SIGPIPE and fails the pipeline precisely when the pattern matches.
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "demo/pinned-version.txt must contain a bare semver, got: '$version'" >&2
   exit 1
 fi
 

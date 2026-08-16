@@ -113,7 +113,11 @@ function unresolvedList(unresolved) {
     li.append(el("code", "reason", u.reason));
     li.append(el("span", "reason-text", REASON_TEXT[u.reason] ?? u.reason));
     const where = el("span", "where");
-    where.textContent = `${codePoints(u.char)} / normalized の ${u.index} 文字目`;
+    // `index` is a 0-based UTF-16 code unit offset, not an ordinal character
+    // count, and the two differ on any input containing a surrogate pair —
+    // including 𠮷田 功, which this page ships as a default. Naming it
+    // "N文字目" would be wrong exactly where the distinction matters.
+    where.textContent = `${codePoints(u.char)} / normalized 上のオフセット ${u.index}（UTF-16 コード単位・0 始まり）`;
     li.append(where);
     list.append(li);
   }
