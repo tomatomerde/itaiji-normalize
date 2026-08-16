@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# The default token scope is write; nothing in CI needs it. release.yml
+# and the data workflows declare the wider scopes they actually use.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

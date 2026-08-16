@@ -1,0 +1,60 @@
+name: Bug report
+description: Output is wrong, or the library throws where it should return a value.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please report in English or Japanese — either is fine.
+
+        The single most useful thing you can give is **the exact input**. This
+        library works on Japanese text, and the failing character is often
+        invisible in a paraphrase (a full-width digit, a compatibility
+        ideograph, a combining sequence). Paste the real value.
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: The output of `npm ls itaiji-normalize`, or the version in your lockfile.
+      placeholder: '0.1.0'
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: 'Node 22.14.0 / Deno 2.1.4 / Chrome 133 / Cloudflare Workers'
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest code that shows the problem. It will be run as-is.
+      value: |
+        import { reduce, isVariant, toMatchingKey } from 'itaiji-normalize';
+
+        console.log(reduce('崎'));
+      render: javascript
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and why
+      description: >
+        If the expected value comes from a source — a government notice, a
+        postal record, an official reading — please name it. This project
+        settles disagreements against sources, not against intuition.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Paste the actual return value or the full error, not a summary of it.
+    validations:
+      required: true
