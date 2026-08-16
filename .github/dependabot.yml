@@ -18,7 +18,18 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    # Minor and patch only, and majors are not proposed at all. This is a
+    # deliberate silence, not an oversight: the first grouped run bundled
+    # TypeScript 5.9 -> 7.0, @types/node 22 -> 26 and vitest 2 -> 4 into one
+    # pull request that failed CI outright. Those are migrations to schedule,
+    # not updates to merge, and a permanently red dependency pull request
+    # teaches you to ignore dependency pull requests. The majors are recorded
+    # in dev-standards' NOTES.md; drop the ignore block to see them here again.
     groups:
       dev-dependencies:
         dependency-type: development
+        update-types: [minor, patch]
         patterns: ['*']
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
