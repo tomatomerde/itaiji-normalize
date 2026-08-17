@@ -1,0 +1,62 @@
+name: Feature request
+description: Something this library should do that it does not
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please write in English or Japanese — either is fine.
+
+        Before filing: several folding rules are already under consideration
+        with the reasoning written out — see the
+        [open enhancement issues](https://github.com/tomatomerde/itaiji-normalize/labels/enhancement).
+        If one of them is what you need, comment there instead. A comment
+        describing your data is worth more than a new issue, because what
+        decides whether these ship is real use cases, not the idea count.
+
+        One thing this library will not do, whatever the request: guess. If
+        two candidates cannot be told apart from the data, it reports the
+        ambiguity rather than picking one. A request framed as "just pick the
+        common one" will be declined — but the same need framed as an opt-in
+        option, off by default, is exactly what these issues are.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The task, not the API. "Deduplicate a customer table where the same
+        person is entered with and without a space" tells us more than "add a
+        trim option", because it leaves room for the answer to be something
+        better than what you had in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: What does your real data look like?
+      description: >
+        A handful of actual (or realistically shaped) inputs, and what you
+        expect each to produce. This is the part that decides whether a
+        proposal ships and what its default is — a guess at what "people"
+        need is not usable, three real rows are.
+      render: text
+      placeholder: |
+        渡辺 太郎   → should match
+        渡邉太郎    → should match
+        山田・花子  → should match 山田花子
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What are you doing instead today?
+      description: >
+        If you already preprocess the strings yourself, say how. A request
+        that a caller can meet in three lines usually belongs in the README
+        rather than in the API, and knowing your workaround is how we tell
+        those two apart.
+    validations:
+      required: false

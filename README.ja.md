@@ -488,6 +488,29 @@ SA(継承)条項により、同梱データ(生成されたテーブルファイ
 
 ## ロードマップ / v1 非対応
 
+### 検討中
+
+機能一覧からではなく、実際の名寄せデータが要求するものから拾っている。いずれも
+**既定でやらなかった理由**まで書いてあるので、**必要ならイシューでそう言ってほしい**。
+実装するかどうかと既定値を決めるのは、実際の利用場面のほう。
+
+- [区切り記号（`・`・`,`・`/`）を畳む](https://github.com/tomatomerde/itaiji-normalize/issues/61)
+  — あるデータでは区切りで、別のデータでは名前の一部（ジョン・スミス）
+- [かなの統一と長音記号のゆれ](https://github.com/tomatomerde/itaiji-normalize/issues/62)
+  — 読み列向けのひらがな ⇄ カタカナ、`ー` と `―`
+- [一括名寄せ用のグルーピング補助](https://github.com/tomatomerde/itaiji-normalize/issues/63)
+  — ループ自体は短いが、未解決の行の扱いはそうではない
+- [ブラウザ向けのバンドル削減](https://github.com/tomatomerde/itaiji-normalize/issues/64)
+  — 関数1つで gzip 約282KB は、入力フォームでは現実的な反対理由になる
+
+いずれも**オプトインで既定はオフ**にする。決められないものは決めずに報告する、
+というこのライブラリの性質はどれでも変わらない。
+
+他にあれば [イシューを立ててほしい](https://github.com/tomatomerde/itaiji-normalize/issues/new?template=feature_request.yml)。
+**実データを数行**添えてもらえると、それが判断材料になる。
+
+### 予定に無いもの
+
 - ホスト型 API・Web サービス化はしない(あくまでライブラリ)
 - 法務省の誤字俗字・正字一覧(民一2842号通達別表)は統合しない —
   `docs/phase0-report.md` #4 参照。この調査を行った環境にはネットワークア
