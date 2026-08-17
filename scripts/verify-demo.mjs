@@ -186,6 +186,53 @@ try {
 
   assert.deepEqual(afterReady, [], "the page made network requests while exercising presets");
 
+  // 7. The on-page request meter agrees with what the browser actually saw.
+  //    Playwright's count is the truth; the meter is what a visitor without
+  //    DevTools reads. If the two ever disagree, the page is reassuring people
+  //    with a number that means nothing — worse than showing no number.
+  assert.equal(
+    await page.evaluate(() => document.body.dataset.requestsAfterReady),
+    "0",
+    "the page's own request counter should still be 0",
+  );
+  assert.equal(
+    (await page.locator("#request-count").textContent()).trim(),
+    "0 件",
+    "the visible request meter should still read 0",
+  );
+  assert.equal(
+    await page.locator("#request-meter.dirty").count(),
+    0,
+    "the request meter should not be in its warning state",
+  );
+
+  // 8. Every off-site link opens in a new tab and carries rel=noopener.
+  //    A visitor checking the provenance should not lose what they typed.
+  const externals = await page.$$eval("a[href^='http']", (as) =>
+    as.map((a) => ({ href: a.href, target: a.target, rel: a.rel })),
+  );
+  assert.ok(externals.length >= 5, `expected external links, got ${externals.length}`);
+  for (const a of externals) {
+    assert.equal(a.target, "_blank", `${a.href} should open in a new tab`);
+    assert.match(a.rel, /noopener/, `${a.href} should carry rel=noopener`);
+  }
+
+  // 9. The data-source link points where the shipped provenance record says
+  //    the data came from. The page carried a hand-typed URL that 404'd for
+  //    months while data/snapshot/PROVENANCE.md — in this same repository —
+  //    held the right one. Nothing was going to catch that except a check
+  //    that compares the two, so this is that check.
+  const provenance = await readFile(path.join(SITE, "vendor/PROVENANCE.txt"), "utf8");
+  const officialPages = [...provenance.matchAll(/Official distribution page:\s*(\S+)/g)].map(
+    (m) => m[1],
+  );
+  assert.ok(officialPages.length > 0, "PROVENANCE should name an official distribution page");
+  const mjHref = await page.getAttribute("a:has-text('MJ縮退マップ')", "href");
+  assert.ok(
+    officialPages.includes(mjHref),
+    `the MJ縮退マップ link is ${mjHref}, but PROVENANCE names ${officialPages.join(", ")}`,
+  );
+
   console.log(
     `demo check OK — ${await browser.version()}; ` +
       `${loadRequests.length} request(s) to load the page, 0 after`,

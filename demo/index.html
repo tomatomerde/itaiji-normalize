@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>itaiji-normalize デモ — 異体字の縮退・名寄せキーをブラウザだけで試す</title>
 <meta name="description" content="MJ縮退マップ（IPA）を根拠に異体字を縮退し、名寄せキーを作る npm ライブラリ itaiji-normalize のデモ。入力はブラウザの外に出ません。">
+<!-- Empty data URI, not a file: without this the browser requests
+     /favicon.ico, which is a network request the page tells visitors
+     it does not make. Cheaper to not make the request than to explain it. -->
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -17,9 +21,9 @@
     <strong>決めずに理由を返す</strong> TypeScript ライブラリです。
   </p>
   <p class="links">
-    <a href="https://www.npmjs.com/package/itaiji-normalize">npm</a>
-    <a href="https://github.com/tomatomerde/itaiji-normalize">GitHub</a>
-    <a href="https://github.com/tomatomerde/itaiji-normalize#readme">README</a>
+    <a href="https://www.npmjs.com/package/itaiji-normalize" target="_blank" rel="noopener noreferrer">npm</a>
+    <a href="https://github.com/tomatomerde/itaiji-normalize" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="https://github.com/tomatomerde/itaiji-normalize#readme" target="_blank" rel="noopener noreferrer">README</a>
   </p>
   <p class="offline" id="offline-note">
     このページの変換は<strong>すべてブラウザの中</strong>で実行しています。
@@ -27,7 +31,18 @@
     <span class="offline-detail">
       ページを開いた直後に、npm 公開版の itaiji-normalize v__ITAIJI_VERSION__
       （gzip 約 __BUNDLE_GZIP_KB__ KB）を読み込みます。<strong>その後は何を入力しても
-      リクエストは発生しません</strong>——DevTools の Network タブを開いたまま操作して確かめてください。
+      リクエストは発生しません</strong>。
+    </span>
+  </p>
+
+  <p class="request-meter" id="request-meter">
+    <span class="meter-label">読み込み後に発生した通信</span>
+    <output class="meter-value" id="request-count" for="text-input char-input">0 件</output>
+    <span class="meter-note">
+      入力しながらこの数字を見てください。増えなければ、文字はこの端末から出ていません。
+      <strong>ただしこれはページ自身が数えた値です</strong>——鵜呑みにしたくない場合は、
+      ブラウザの開発者ツール（<kbd>F12</kbd>）の Network タブを開いたまま操作すると、
+      同じことを外側から確認できます。
     </span>
   </p>
   <p class="font-note">
@@ -38,6 +53,29 @@
 </header>
 
 <main>
+
+<section class="panel panel-guide">
+  <h2>このデモの見方</h2>
+  <p class="panel-lead">
+    どのボタンを押しても、確かめてほしいのは次の3つです。
+    <strong>各ボタンの下に「見どころ」を書いてあります。</strong>
+  </p>
+  <ol class="guide">
+    <li>
+      <strong>同じ人が1つにまとまるか。</strong> 表記の違う「渡邉／渡邊／渡辺」が
+      同じグループに入り、代表として <code>渡辺</code> が出ます
+    </li>
+    <li>
+      <strong>決められないときに、決めずに理由を出すか。</strong> ここが本題です。
+      候補が2つあるのに片方を選んでしまうライブラリは、選ばなかった側の利用者に対して
+      黙って間違えます。このライブラリは <code>ambiguous</code> のような理由を返して止まります
+    </li>
+    <li>
+      <strong>入力が外に出ていないか。</strong> 上の「読み込み後に発生した通信」が
+      <code>0 件</code> のまま動かないこと
+    </li>
+  </ol>
+</section>
 
 <p id="loading" class="loading" role="status">ライブラリを読み込んでいます…</p>
 <p id="load-error" class="load-error" role="alert" hidden></p>
@@ -117,19 +155,19 @@ reduce("朢").unique;             // null （候補が2つあり決められな�
   <h2>出典とライセンス</h2>
   <p>
     データ: 文字情報技術促進協議会／独立行政法人情報処理推進機構（IPA）
-    <a href="https://moji.or.jp/mojikiban/mjkanjimap/">MJ縮退マップ</a>
-    （<a href="https://creativecommons.org/licenses/by-sa/2.1/jp/">CC BY-SA 2.1 日本</a>）。
+    <a href="https://moji.or.jp/mojikiban/map/" target="_blank" rel="noopener noreferrer">MJ縮退マップ</a>
+    （<a href="https://creativecommons.org/licenses/by-sa/2.1/jp/" target="_blank" rel="noopener noreferrer">CC BY-SA 2.1 日本</a>）。
     同梱スナップショットの取得日・版・ハッシュは
-    <a href="./vendor/PROVENANCE.md">PROVENANCE.md</a> にあります。
+    <a href="./vendor/PROVENANCE.txt" target="_blank" rel="noopener">PROVENANCE.md</a> にあります。
   </p>
   <p>
-    コードは <a href="./vendor/LICENSE.txt">MIT</a>、同梱データは
-    <a href="./vendor/LICENSE-DATA.txt">CC BY-SA 2.1 JP</a> の二重ライセンスです。
+    コードは <a href="./vendor/LICENSE.txt" target="_blank" rel="noopener">MIT</a>、同梱データは
+    <a href="./vendor/LICENSE-DATA.txt" target="_blank" rel="noopener">CC BY-SA 2.1 JP</a> の二重ライセンスです。
     データから派生したものには SA（継承）が及びます。
   </p>
   <p class="foot-meta">
     このページは npm 公開版 itaiji-normalize v__ITAIJI_VERSION__ を読み込んでいます。
-    ページのソースは <a href="https://github.com/tomatomerde/itaiji-normalize/tree/main/demo">リポジトリの demo/</a>。
+    ページのソースは <a href="https://github.com/tomatomerde/itaiji-normalize/tree/main/demo" target="_blank" rel="noopener noreferrer">リポジトリの demo/</a>。
   </p>
 </footer>
 

@@ -74,7 +74,10 @@ mkdir -p "$out/vendor"
 cp "$bundle" "$out/vendor/itaiji-normalize.js"
 cp "$work/x/package/LICENSE" "$out/vendor/LICENSE.txt"
 cp "$work/x/package/LICENSE-DATA" "$out/vendor/LICENSE-DATA.txt"
-cp "$work/x/package/data/snapshot/PROVENANCE.md" "$out/vendor/PROVENANCE.md"
+# Copied as .txt, not .md: Pages serves text/markdown, which browsers
+# download rather than display, so a visitor checking the provenance
+# would get a file in their downloads folder instead of a page.
+cp "$work/x/package/data/snapshot/PROVENANCE.md" "$out/vendor/PROVENANCE.txt"
 
 # Pages would otherwise run the output through Jekyll, which drops files and
 # directories beginning with an underscore.

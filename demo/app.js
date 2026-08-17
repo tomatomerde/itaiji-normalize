@@ -12,6 +12,7 @@
 const PRESET_TEXTS = [
   {
     label: "名寄せ（既定）",
+    note: "渡邉/渡邊/渡辺 が1グループに。𠮷田 功 は決められない字を含む",
     value: [
       "渡邉 太郎",
       "渡邊 太郎",
@@ -24,10 +25,12 @@ const PRESET_TEXTS = [
   },
   {
     label: "決められない・見つからない",
+    note: "4行とも縮退しない。行ごとに理由が違うのを見る",
     value: ["朢月", "址", "龟", "㖒"].join("\n"),
   },
   {
     label: "正規化と異体字セレクタ",
+    note: "㍿ や ① は正規化で開く。傳+セレクタ は付ける前と答えが変わる",
     value: ["㍿ 髙島屋", "①②③", "傳" + "\u{E0102}", "傳", "伝"].join("\n"),
   },
 ];
@@ -318,6 +321,45 @@ function makePresets(container, presets, apply) {
   }
 }
 
+/**
+ * Counts the page's own network activity after the bundle has loaded and shows
+ * the running total.
+ *
+ * The page already told visitors to open DevTools, which is the trustworthy
+ * check but not one every reader knows how to run. This puts the same number
+ * on the page so the claim is legible without tools — and the copy next to it
+ * says outright that a page counting itself is not proof, so the DevTools
+ * route stays the answer for anyone who wants one.
+ *
+ * PerformanceObserver sees fetch/XHR/img/script/css alike, which is wider than
+ * patching fetch would be: anything that costs a request shows up here.
+ *
+ * Entries are filtered by startTime rather than by arrival. A resource whose
+ * request began during page load can have its timing entry delivered after the
+ * page goes live — the browser's own /favicon.ico does exactly that — and
+ * counting it would show every visitor "1 件" for something they did not cause.
+ * A meter that cries wolf on load is worse than no meter, because the number
+ * it shows during a real leak would look the same.
+ */
+function startRequestMeter() {
+  const output = document.getElementById("request-count");
+  if (!output || typeof PerformanceObserver === "undefined") return;
+
+  const startedAt = performance.now();
+  let count = 0;
+  const observer = new PerformanceObserver((list) => {
+    count += list.getEntries().filter((e) => e.startTime >= startedAt).length;
+    if (count === 0) return;
+    output.textContent = `${count} 件`;
+    // Only ever flips on. A page that has made a request has made it.
+    if (count > 0) document.getElementById("request-meter")?.classList.add("dirty");
+    // Read by scripts/verify-demo.mjs, which asserts this stays at 0.
+    document.body.dataset.requestsAfterReady = String(count);
+  });
+  observer.observe({ type: "resource", buffered: false });
+  document.body.dataset.requestsAfterReady = "0";
+}
+
 async function main() {
   const loading = document.getElementById("loading");
   const loadError = document.getElementById("load-error");
@@ -362,6 +404,7 @@ async function main() {
   loading.hidden = true;
   document.getElementById("panel-text").hidden = false;
   document.getElementById("panel-char").hidden = false;
+  startRequestMeter();
   document.body.dataset.ready = "1";
 }
 
