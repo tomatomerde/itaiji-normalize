@@ -143,9 +143,8 @@ esbuild 0.28.2(`--bundle --minify --format=esm`)、gzip レベル9、
 itaiji-normalize 0.2.0 での実測。CI が照合する基準値は
 [`docs/measurements/bundle-size.json`](./docs/measurements/bundle-size.json)。
 **この2つの条件は効く**——gzip を zlib 既定のレベル6にすると単一関数で約3 KB、
-API 全体で約11 KB 増える。以前の表はどちらも記録せずに載せていたため、あとから
-再現できなかった。手元のバンドラでは数 KB 前後するので、CI は完全一致ではなく
-±5% で見ている。
+API 全体で約11 KB 増える。どちらも記録していない実測値は、あとから再現できない。
+手元のバンドラでは数 KB 前後するので、CI は完全一致ではなく ±5% で見ている。
 
 API の2つの半分は、互いに素なテーブルを引く。`isVariant` と `getVariants` が
 必要とするのは異体字隣接グラフだけで、`reduce` と `toMatchingKey` は2つの縮退

@@ -125,6 +125,32 @@ try {
   assert.equal((await page.locator("#char-output .via").textContent()).trim(), "base");
   assert.equal((await page.locator("#char-output .unique .glyph-key").textContent()).trim(), "崎");
 
+  // 3b. The copy-pasteable sample says what the loaded bundle actually returns.
+  //    This is the one block a visitor runs rather than reads, and it drifts
+  //    silently: 0.2.0 changed `toMatchingKey` to drop spacing — the reason the
+  //    release existed — and this sample kept the 0.1.x output, contradicting
+  //    the paragraph 25 lines above it on the same page. Evaluating it against
+  //    the bundle the page loaded is the only thing that catches that, since
+  //    nothing else on the page reads this block.
+  const samples = await page.evaluate(async () => {
+    const lib = await import("./vendor/itaiji-normalize.js");
+    const text = document.querySelectorAll("pre.install code")[1].textContent;
+    const out = [];
+    for (const line of text.split("\n")) {
+      // `expression;  // expected value （optional aside）`
+      const m = line.match(/^(\S.*?);\s*\/\/\s*(.+?)\s*(?:（.*）)?$/);
+      if (!m) continue;
+      const [, expr, claimed] = m;
+      const value = new Function("lib", `with (lib) { return (${expr}); }`)(lib);
+      out.push({ expr, claimed, actual: JSON.stringify(value) });
+    }
+    return out;
+  });
+  assert.ok(samples.length >= 2, `expected the sample block to have annotated lines, got ${samples.length}`);
+  for (const { expr, claimed, actual } of samples) {
+    assert.equal(actual, claimed, `the sample claims \`${expr}\` is ${claimed}, but it is ${actual}`);
+  }
+
   // 4. The pinned version is what the page advertises.
   const versionText = await page.locator(".version").textContent();
   assert.equal(versionText.trim(), `v${PINNED}`);
