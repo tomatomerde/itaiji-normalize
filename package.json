@@ -10,7 +10,12 @@
     "normalization",
     "mj-shrink-map",
     "ivs",
-    "unicode"
+    "unicode",
+    "異体字",
+    "名寄せ",
+    "旧字体",
+    "文字コード",
+    "MJ縮退マップ"
   ],
   "author": "tomatomerde (https://github.com/tomatomerde)",
   "license": "MIT",
