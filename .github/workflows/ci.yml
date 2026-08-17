@@ -59,6 +59,27 @@ jobs:
             exit 1;
           }
 
+  bundle-size:
+    # README の「Bundle size」表は長らく手元で1回測っただけの数値で、どの
+    # esbuild・どの gzip 設定で測ったかが記録に無かった。測り直すと 4〜13 KB
+    # 下振れして、それが版差なのか実際の変化なのか判定できなかった——数値が
+    # 間違っていたことより、**測り直せなかったこと**が問題だった。
+    #
+    # 完全一致ではなく許容幅(±5%)で見る。厳密一致にすると esbuild を上げる
+    # たびに赤くなり、「また赤い」で読まれない検査が1つ増えるだけになる。
+    # 5% はバンドラの版差では踏まず、テーブル1枚(数十 KB)を取り込む事故なら
+    # 確実に踏む幅。基準値は docs/measurements/bundle-size.json。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check bundle size against docs/measurements/bundle-size.json
+        run: npm run measure:bundle -- --check
+
   dist:
     # The `test` job's 98 tests all import from `../src/*.js`, so they only ever
     # prove src/ is correct — the smoke-node18 job below is the only thing that

@@ -37,17 +37,20 @@ This package is built from the MJ Shrink Map instead: a dataset published by
 Japan's Character Information Technology Promotion Council / IPA that
 documents character relations with their legal/lexicographic basis (family
 register notices, MOJ notice 582 appendix 4, JIS inclusion rules,
-dictionaries, or reading/shape analogy). During the pre-implementation study
-for this package we found it covers about **19x more distinct
-character-to-character pairs** than the `itaiji` dictionary, plus IVS
-support that `itaiji` has no concept of at all. See
-[`docs/phase0-report.md`](./docs/phase0-report.md) for the full numbers.
+dictionaries, or reading/shape analogy). It carries 26,668 character-to-character
+pairs that `itaiji` does not have — about **19x** the whole `itaiji`
+dictionary — plus IVS support that `itaiji` has no concept of at all. Both
+sides are fixed datasets, so this comparison is re-run in CI against
+`itaiji` 1.2.0 rather than quoted from a one-off study; see
+[`test/itaiji-comparison.test.ts`](./test/itaiji-comparison.test.ts) for the
+computation and [`docs/phase0-report.md`](./docs/phase0-report.md) for the
+original survey.
 
 **This is not a drop-in replacement for `itaiji`.** MJ Shrink Map reduces
 characters to a form representable in JIS X 0213 — it is not a
-new-orthography (shinjitai) normalizer. About 86% of `itaiji`'s 1,404 pairs
-are captured as an equivalence relation here, but pairs where both sides are
-already independently JIS-representable (e.g. 啞→唖, 鷗→鴎) are not
+new-orthography (shinjitai) normalizer. 1,197 of `itaiji`'s 1,404 pairs
+(85%) are captured as an equivalence relation here, but pairs where both
+sides are already independently JIS-representable (e.g. 啞→唖, 鷗→鴎) are not
 "reduced" by this data, since neither side needs shrinking. If your use case
 is specifically old-style→new-style kanji substitution, check whether that
 distinction matters for you.
@@ -62,8 +65,8 @@ Two conditions are worth knowing before you commit to it, because both fail
 *after* the install rather than during it — full details under
 [Known limitations](#known-limitations):
 
-- **The bundled tables are large**: ~280–290 KB gzipped even for a single
-  entry point, **~570 KB for the whole API**. On Cloudflare Workers that is
+- **The bundled tables are large**: ~270–280 KB gzipped even for a single
+  entry point, **~555 KB for the whole API**. On Cloudflare Workers that is
   over half the 1 MB budget. Import only what you use — the tables carry
   `/* @__PURE__ */` annotations so bundlers can drop the rest.
 - **Full ICU is required** for the default `unicodeNormalize: "NFKC"`.
@@ -143,23 +146,35 @@ responsibly.
 
 Measured, not estimated. Please weigh these before adopting.
 
-**Bundle size.** The tables are large. Approximate figures, minified and
-gzipped, measured with `esbuild --bundle --minify --format=esm` (expect a few
-KB either way depending on your bundler and its version):
+**Bundle size.** The tables are large. Run `npm run measure:bundle` to
+reproduce this table; the numbers below are that script's output, and CI
+re-runs it on every PR:
 
 | what you import | gzip |
 | --- | --- |
-| `isVariant` only | ~287 KB |
-| `reduce` only | ~282 KB |
-| `toMatchingKey` | ~282 KB |
-| the whole API | ~568 KB |
+| `isVariant` only | ~281 KB |
+| `reduce` only | ~271 KB |
+| `toMatchingKey` | ~272 KB |
+| the whole API | ~553 KB |
 
-`reduce` and `toMatchingKey` grew by about 11 KB each in 0.1.3 — they now
-pull in the `KANJI_POLICY` table (2,999 entries) that backs the
-常用漢字/人名用漢字 tiebreak described under [`reduce`](#reducechar-reduceresult).
-`isVariant` doesn't consult that table, so it is essentially unchanged. The
-whole-API bundle only grew by about 6 KB, since bundling both functions
-together shares one copy of the table instead of paying for it twice.
+Measured with esbuild 0.28.2 (`--bundle --minify --format=esm`), gzip level
+9, on itaiji-normalize 0.2.0; the baseline CI compares against lives in
+[`docs/measurements/bundle-size.json`](./docs/measurements/bundle-size.json).
+**Both of those conditions matter**: gzip at zlib's default level 6 instead
+of 9 adds ~3 KB to a single function and ~11 KB to the whole API, and an
+earlier version of this table — published without recording either setting —
+could not be reproduced afterwards. Your own bundler will land a few KB
+either way, which is why CI allows ±5% rather than demanding an exact match.
+
+The two halves of the API reach disjoint tables. `isVariant` and
+`getVariants` need only the variant adjacency graph; `reduce` and
+`toMatchingKey` need the two reduction tables plus the `KANJI_POLICY` table
+(2,999 entries) backing the 常用漢字/人名用漢字 tiebreak described under
+[`reduce`](#reducechar-reduceresult). Because nothing is shared between
+them, the whole-API figure is essentially the sum of the two, not less.
+Note that `reduce` gzips ~10 KB *smaller* than `isVariant` despite pulling
+about 30% more bytes before compression — the adjacency graph compresses
+worse than the reduction tables.
 
 The generated tables carry `/* @__PURE__ */` annotations so bundlers can drop
 the ones you don't reach; without them every consumer paid for all of them.
@@ -181,12 +196,21 @@ missing ICU would fail there rather than silently produce different keys. A
 Node compiled with `--with-intl=small-icu` (or `none`) will not normalize
 correctly; pass `unicodeNormalize: false` if you must run on such a build.
 
-**Throughput.** Roughly 0.5–0.7 million `toMatchingKey` calls/second on short
-names (100,000 names in ~150–210 ms across the machines we measured on, Node
-22) — treat it as an order of magnitude, not a promise. There is no
-cross-call cache, on purpose: that would be hidden global state. If you are
-normalizing millions of rows and want more, memoize per character on your
-side.
+**Throughput.** Run `npm run bench` to measure it on your own hardware —
+that number is worth more than ours, because this one is machine-dependent
+and we deliberately do not gate CI on it. Our reference run: **100,000 short
+names in ~230 ms** (≈0.44 M `toMatchingKey` calls/second) on Node 22.22.2, an
+Intel Xeon @ 2.80 GHz (4 vCPU, linux/x64) shared cloud container. Across five
+invocations the median held between 227 and 230 ms, while the slowest single
+sample in each wandered from 230 to 268 ms — the median reproduces, the tail
+does not, because the machine is shared. The full record is in
+[`docs/measurements/throughput.json`](./docs/measurements/throughput.json).
+Treat it as an order of magnitude, not a promise; a dev laptop is typically
+faster.
+
+There is no cross-call cache, on purpose: that would be hidden global state.
+If you are normalizing millions of rows and want more, memoize per character
+on your side.
 
 **What CI does not cover.** Runtimes other than Node 18/20/22, headless
 Chromium and workerd — notably Deno, Bun, and non-Chromium browsers. Nothing
@@ -557,7 +581,7 @@ what decide whether they ship and what their defaults are.
 - [A grouping helper for bulk deduplication](https://github.com/tomatomerde/itaiji-normalize/issues/63)
   — the loop is short, but handling the unresolved rows correctly is not
 - [A smaller browser bundle](https://github.com/tomatomerde/itaiji-normalize/issues/64)
-  — ~282 KB gzip for one function is a real objection in a form field
+  — ~272 KB gzip for one function is a real objection in a form field
 
 All of them would be **opt-in and off by default**. This library reports an
 ambiguity rather than guessing at it, and none of these change that.
@@ -574,7 +598,7 @@ New request? [Open one](https://github.com/tomatomerde/itaiji-normalize/issues/n
   study, so its machine-readability was not verified
 - Tables are stored as plain JSON. A compact re-encoding (shared target
   dictionary, code point delta encoding) would cut the whole-API bundle
-  well below the current ~568 KB gzip; designed in the phase 0 study, not
+  well below the current ~553 KB gzip; designed in the phase 0 study, not
   yet implemented
 - No Deno or Bun coverage in CI (Node, Chromium and workerd are covered)
 - No Python port yet (depends on adoption of the TypeScript version)
@@ -589,4 +613,6 @@ npm test               # vitest
 npm run typecheck
 npm run test:browser   # run the built bundle in headless Chromium
 npm run test:workers   # run the built bundle in workerd (Cloudflare Workers)
+npm run measure:bundle # measure bundle size (--check compares to the baseline)
+npm run bench          # measure throughput (deliberately not gated in CI)
 ```
