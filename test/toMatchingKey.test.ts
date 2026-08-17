@@ -71,8 +71,74 @@ describe("toMatchingKey", () => {
     const result = toMatchingKey("㈱ｶﾌﾞｼｷ 〒100-0001 TEL:03-1234-5678");
     expect(result.unresolved).toEqual([]);
     const name = toMatchingKey("﨑山　さゆり");
-    expect(name.key).toBe("崎山 さゆり");
+    expect(name.key).toBe("崎山さゆり");
     expect(name.unresolved).toEqual([]);
+  });
+
+  describe("空白は既定でキーから落とす", () => {
+    // 実運用で最初に踏むのがここ。姓名の間に空白を入れるかどうかは人物の属性では
+    // ないのに、入れた記録と入れていない記録が別グループに分かれていた。
+    // 「1つに畳む」では直らない——空白ありと空白なしが依然として別になるため、
+    // 落とす以外に選択肢がない。
+    it("空白の有無・種類・数・位置が違っても同じキーになる", () => {
+      const spellings = [
+        "渡邉 太郎", // 半角空白
+        "渡邉\u3000太郎", // 全角空白
+        "渡邉太郎", // 空白なし
+        "渡邉  太郎", // 2つ
+        " 渡邉 太郎 ", // 前後にも
+        "渡邉\t太郎", // タブ
+        "渡邉\u00A0太郎", // NBSP
+        "渡邉\n太郎", // 改行
+      ];
+      const keys = new Set(spellings.map((s) => toMatchingKey(s).key));
+      expect([...keys]).toEqual(["渡辺太郎"]);
+    });
+
+    it("目に見えない書式文字も落とす", () => {
+      // これが実害の大きいほう。画面上は同一に見えるのに一致しないので、
+      // 呼び出し側には調べる手がかりが何も無い。Excel や PDF からのコピーで混入する。
+      const invisible = [
+        "渡辺\u200B太郎", // ZWSP
+        "渡辺\uFEFF太郎", // BOM
+        "渡辺\u00AD太郎", // soft hyphen
+        "渡辺\u200C太郎", // ZWNJ
+      ];
+      for (const text of invisible) {
+        expect(toMatchingKey(text).key).toBe("渡辺太郎");
+      }
+    });
+
+    it("異体字セレクタは落とさない(Mn であって Cf ではない)", () => {
+      // Cf を落とす実装が選択子まで巻き込むと、このライブラリが読むべき区別が
+      // 消える。葛+U+E0101 は基底へフォールバックするが、選択子は解釈された上で
+      // そうなっているのであって、無視された結果ではない。
+      const withSelector = toMatchingKey("傳\u{E0102}");
+      expect(withSelector.key).not.toBe("");
+      expect(withSelector.key).toBe(toMatchingKey("傳\u{E0102}", { ignoreWhitespace: false }).key);
+    });
+
+    it("ignoreWhitespace: false で従来どおり空白を残せる", () => {
+      expect(toMatchingKey("渡邉 太郎", { ignoreWhitespace: false }).key).toBe("渡辺 太郎");
+      expect(toMatchingKey("渡邉太郎", { ignoreWhitespace: false }).key).toBe("渡辺太郎");
+    });
+
+    it("normalized は空白を保ち、index はそちらを指したままになる", () => {
+      // キーから落とすのは key だけ。落とした側にオフセットを合わせると、
+      // 呼び出し側が持っていない文字列を指す番号になってしまう。
+      const result = toMatchingKey("渡辺 龟太郎");
+      expect(result.normalized).toBe("渡辺 龟太郎");
+      expect(result.key).toBe("渡辺龟太郎");
+      expect(result.unresolved).toHaveLength(1);
+      const { index, char } = result.unresolved[0]!;
+      expect(char).toBe("龟");
+      expect(result.normalized[index]).toBe("龟");
+    });
+
+    it("boolean 以外を渡したら投げる", () => {
+      // @ts-expect-error 実行時ガードの確認
+      expect(() => toMatchingKey("渡辺", { ignoreWhitespace: "yes" })).toThrow(TypeError);
+    });
   });
 
   it("拮抗した候補が別々の終着点に至る場合は ambiguous として載る", () => {

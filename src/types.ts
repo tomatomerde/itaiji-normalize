@@ -107,6 +107,34 @@ export interface MatchingKeyResult {
 export interface MatchingKeyOptions {
   /** Default: "NFKC". Pass false to disable Unicode normalization entirely. */
   unicodeNormalize?: "NFC" | "NFKC" | false;
+  /**
+   * Whether spacing is dropped from `key`. Default: true.
+   *
+   * Whether a record writes 渡辺太郎 or 渡辺 太郎 is not a fact about the
+   * person, and in real name data both spellings occur for the same one. A
+   * key that distinguishes them fails at the one job this function has, so
+   * every space, tab and line break is removed — not collapsed, because
+   * collapsing still leaves "with a space" and "without a space" apart.
+   *
+   * Invisible formatting characters go with them (zero-width space, BOM,
+   * soft hyphen, the bidi controls — Unicode's `Cf` category). Those are the
+   * ones that actually hurt: they survive a copy out of a spreadsheet or a
+   * PDF, and two records that look identical on screen do not match, with
+   * nothing on screen to explain why. Variation selectors are `Mn`, not
+   * `Cf`, so they are untouched — dropping those would discard the very
+   * distinction this library exists to read.
+   *
+   * Pass false when the input is not a name and the spacing carries meaning.
+   * `normalized` always keeps the spacing either way, and `unresolved[].index`
+   * indexes into `normalized`, so offsets stay usable.
+   *
+   * What is NOT folded, deliberately: `・` and other separators (they are
+   * part of transliterated names — ジョン・スミス), ー versus ―, and
+   * hiragana versus katakana. Each of those changes what the text says, and
+   * guessing that two of them mean the same thing is the kind of decision
+   * this library refuses to make on the caller's behalf.
+   */
+  ignoreWhitespace?: boolean;
 }
 
 export interface VariantOptions {

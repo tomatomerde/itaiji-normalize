@@ -3,6 +3,41 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.0 — 2026-08-17
+
+### Changed (behaviour)
+
+- **`toMatchingKey` now drops spacing from `key`.** `渡辺 太郎` and `渡辺太郎`
+  produced two different keys, so the same person landed in two groups —
+  which is the one thing a matching key exists to prevent. Whether a record
+  puts a space between surname and given name is not a fact about the person,
+  and in real name data both spellings occur. Every space, tab, newline and
+  full-width space is now removed, along with leading, trailing and doubled
+  ones. Collapsing to a single space would not have fixed it: "with a space"
+  and "without a space" would still differ.
+
+  Invisible formatting characters go with them — zero-width space, BOM, soft
+  hyphen, the bidi controls (Unicode's `Cf` category). Those are the ones that
+  actually hurt: they survive a copy out of a spreadsheet or a PDF, and two
+  records that look identical on screen do not match, with nothing on screen
+  to explain why. Variation selectors are `Mn`, not `Cf`, and are untouched —
+  pinned by the existing U+FE0F invariants.
+
+  This changes `key` for any input containing spacing, hence the minor bump
+  under 0.x. Pass `ignoreWhitespace: false` for the previous behaviour.
+  `normalized` keeps the spacing either way, so `unresolved[].index` is
+  unaffected.
+
+  Deliberately still **not** folded: `・` and other separators (part of
+  transliterated names — ジョン・スミス), `ー` versus `―`, and hiragana versus
+  katakana. Each changes what the text says; deciding two of them mean the
+  same thing is the sort of guess this library leaves to the caller. Reported
+  by the repository owner while trying the demo page.
+
+### Added
+
+- `toMatchingKey` option `ignoreWhitespace` (default `true`).
+
 ## 0.1.4 — 2026-08-13
 
 ### Fixed

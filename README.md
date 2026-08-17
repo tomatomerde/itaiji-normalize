@@ -398,6 +398,30 @@ itself, since most characters need more than one step. Characters that
 cannot be resolved are left unchanged in `key` and reported in `unresolved`.
 This function never silently guesses.
 
+**Spacing is dropped from `key`.** Whether a record writes 渡辺太郎 or
+渡辺 太郎 is not a fact about the person, so both produce `"渡辺太郎"` —
+along with a full-width space, a tab, a newline, doubled spaces, and leading
+or trailing ones. Invisible formatting characters (zero-width space, BOM,
+soft hyphen, the bidi controls — Unicode's `Cf` category) go with them; those
+are the ones that hurt in practice, because two records that look identical
+on screen fail to match with nothing on screen to explain why. Variation
+selectors are `Mn`, not `Cf`, and are untouched.
+
+Pass `ignoreWhitespace: false` when the input is not a name and the spacing
+carries meaning. `normalized` keeps the spacing either way, so
+`unresolved[].index` stays usable.
+
+**Not folded, deliberately:** `・` and other separators (they belong to
+transliterated names — ジョン・スミス), `ー` versus `―`, and hiragana versus
+katakana. Each of those changes what the text says, and deciding that two of
+them mean the same thing is a guess this library leaves to you.
+
+```ts
+toMatchingKey("渡邉 太郎").key;                              // "渡辺太郎"
+toMatchingKey("渡邉太郎").key;                               // "渡辺太郎"  同じ
+toMatchingKey("渡邉 太郎", { ignoreWhitespace: false }).key; // "渡辺 太郎"
+```
+
 **`unresolved[].index` indexes `normalized`, not your input string.**
 Normalization changes lengths, so the offset can point past the end of what
 you passed in — slice `normalized`:
