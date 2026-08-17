@@ -543,6 +543,30 @@ those explicitly.
 
 ## Roadmap / not in v1
 
+### Under consideration
+
+Driven by what real name data actually needs, not by a feature list. Each of
+these is written up with the reasoning for why it was *not* done by default —
+**if one of them is what you need, say so on the issue.** Real use cases are
+what decide whether they ship and what their defaults are.
+
+- [Folding name separators (`・`, `,`, `/`)](https://github.com/tomatomerde/itaiji-normalize/issues/61)
+  — `・` is a divider in one dataset and part of the name in the next (ジョン・スミス)
+- [Kana folding and long-vowel mark variants](https://github.com/tomatomerde/itaiji-normalize/issues/62)
+  — hiragana ⇄ katakana for reading columns; `ー` versus `―`
+- [A grouping helper for bulk deduplication](https://github.com/tomatomerde/itaiji-normalize/issues/63)
+  — the loop is short, but handling the unresolved rows correctly is not
+- [A smaller browser bundle](https://github.com/tomatomerde/itaiji-normalize/issues/64)
+  — ~282 KB gzip for one function is a real objection in a form field
+
+All of them would be **opt-in and off by default**. This library reports an
+ambiguity rather than guessing at it, and none of these change that.
+
+New request? [Open one](https://github.com/tomatomerde/itaiji-normalize/issues/new?template=feature_request.yml)
+— bring a few rows of your actual data, that is the part that decides things.
+
+### Not planned
+
 - No hosted API / web service (this is a library, not a service)
 - No integration of the Ministry of Justice's 誤字俗字・正字一覧 (Notice
   民一2842号 appendix) — see `docs/phase0-report.md` #4; this requires
