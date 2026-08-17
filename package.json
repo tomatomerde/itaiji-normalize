@@ -58,11 +58,15 @@
     "test:demo": "node scripts/verify-demo.mjs",
     "test:browser": "node scripts/verify-browser.mjs",
     "test:workers": "node scripts/verify-workers.mjs",
+    "measure:bundle": "node scripts/measure-bundle.mjs",
+    "bench": "node scripts/bench-throughput.mjs",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "esbuild": "0.28.2",
+    "itaiji": "1.2.0",
     "playwright": "^1.62.1",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

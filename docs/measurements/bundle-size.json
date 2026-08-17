@@ -1,0 +1,39 @@
+{
+  "note": "README/README.ja の Bundle size 表の基準値。`npm run measure:bundle -- --json` の出力をそのまま貼ること。CI は `npm run measure:bundle -- --check` で許容幅内かを見る。数値を手で書き換えないこと——それをやると、また出どころの無い数値に戻る。",
+  "measuredAt": "2026-08-17",
+  "measuredOn": "GitHub Actions ubuntu-latest 相当のコンテナ(バンドルサイズは機械に依存しない)",
+  "gzipLevel": 9,
+  "gzipLevelNote": "zlib のレベル9。既定(6)だと isVariant で +2.5 KB、API 全体で +11 KB になる。**この選択が記録に無かったことが、旧記載(287/282/282/568 KB)を再現できなかった主因**。バンドルサイズ表を出すツール(npm の gzip-size 等)の慣例に合わせてレベル9に固定した。",
+  "esbuildNote": "esbuild は devDependency に厳密指定(キャレット無し)で入れてある。0.27.7 と 0.28.2 は本ライブラリでは出力バイト単位で一致した——テーブルが出力の大半を占めるので、minifier の版差はほぼ効かない。",
+  "tolerance": 0.05,
+  "toleranceNote": "基準から ±5% で赤。厳密一致にすると esbuild を上げるたびに赤くなり「また赤い」で読まれない検査になる。一方でテーブル1枚(数十 KB = 10% 超)を取り込む事故は確実に踏む幅。",
+  "esbuild": "0.28.2",
+  "library": "0.2.0",
+  "node": "v22.22.2",
+  "measurements": [
+    {
+      "id": "isVariant",
+      "label": "`isVariant` only",
+      "minifiedBytes": 1106980,
+      "gzipBytes": 288204
+    },
+    {
+      "id": "reduce",
+      "label": "`reduce` only",
+      "minifiedBytes": 1425710,
+      "gzipBytes": 277979
+    },
+    {
+      "id": "toMatchingKey",
+      "label": "`toMatchingKey`",
+      "minifiedBytes": 1427494,
+      "gzipBytes": 278672
+    },
+    {
+      "id": "all",
+      "label": "the whole API",
+      "minifiedBytes": 2535442,
+      "gzipBytes": 566442
+    }
+  ]
+}
