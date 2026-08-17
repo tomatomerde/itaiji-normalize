@@ -108,6 +108,11 @@ jobs:
   # Failing here makes the drift visible without publishing something nobody
   # verified.
   pin-freshness:
+    # Not on pull requests. Between a release and the commit that bumps the
+    # pin, this job is legitimately red — but that is a state of main, not of
+    # anyone's branch, and failing it on a pull request would block a
+    # contributor on something they cannot fix from their own diff.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
