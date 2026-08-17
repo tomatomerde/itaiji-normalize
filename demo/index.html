@@ -152,7 +152,7 @@
 <pre class="install"><code>npm install itaiji-normalize@__ITAIJI_VERSION__</code></pre>
 <pre class="install"><code>import { toMatchingKey, reduce } from "itaiji-normalize";
 
-toMatchingKey("渡邉 太郎").key;  // "渡辺 太郎"
+toMatchingKey("渡邉 太郎").key;  // "渡辺太郎" （空白はキーから落ちる）
 reduce("朢").unique;             // null （候補が2つあり決められない）</code></pre>
   <p class="panel-lead">
     依存ゼロ。データは全部同梱で、実行時に外部へ取りに行きません。

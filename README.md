@@ -161,10 +161,10 @@ Measured with esbuild 0.28.2 (`--bundle --minify --format=esm`), gzip level
 9, on itaiji-normalize 0.2.0; the baseline CI compares against lives in
 [`docs/measurements/bundle-size.json`](./docs/measurements/bundle-size.json).
 **Both of those conditions matter**: gzip at zlib's default level 6 instead
-of 9 adds ~3 KB to a single function and ~11 KB to the whole API, and an
-earlier version of this table — published without recording either setting —
-could not be reproduced afterwards. Your own bundler will land a few KB
-either way, which is why CI allows ±5% rather than demanding an exact match.
+of 9 adds ~3 KB to a single function and ~11 KB to the whole API, so a
+measurement that does not record them cannot be reproduced. Your own bundler
+will land a few KB either way, which is why CI allows ±5% rather than
+demanding an exact match.
 
 The two halves of the API reach disjoint tables. `isVariant` and
 `getVariants` need only the variant adjacency graph; `reduce` and
