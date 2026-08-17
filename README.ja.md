@@ -550,5 +550,5 @@ npm run typecheck
 npm run test:browser   # headless Chromium でビルド成果物を実行
 npm run test:workers   # workerd(Cloudflare Workers)でビルド成果物を実行
 npm run measure:bundle # バンドルサイズを実測(--check で基準値と照合)
-npm run bench          # スループットを実測(CI では判定しない)
+npm run bench          # スループットを実測(要ビルド。CI では判定しない)
 ```

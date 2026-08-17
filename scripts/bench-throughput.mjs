@@ -6,10 +6,14 @@
 // 「読者が自分の機械で測り直せるようにする」ことで、数値そのものは
 // 測定条件(機械・Node・データ)と必ずセットで出す。
 //
-// 使い方:
-//   node scripts/bench-throughput.mjs
-//   node scripts/bench-throughput.mjs --json
-//   node scripts/bench-throughput.mjs --names 200000 --runs 10
+// 使い方(先に `npm run build` が要る):
+//   npm run bench
+//   npm run bench -- --json
+//   npm run bench -- --names 200000 --runs 10
+//
+// **ビルドの直後に走らせないこと。** `npm run build && npm run bench` のように
+// 繋ぐと、マシンがまだ忙しいうちに測ることになる——実際それで中央値が
+// 227ms から 263ms まで落ちた。bench にビルドを含めていないのはこのため。
 
 import { cpus, totalmem } from "node:os";
 import { existsSync } from "node:fs";

@@ -614,5 +614,5 @@ npm run typecheck
 npm run test:browser   # run the built bundle in headless Chromium
 npm run test:workers   # run the built bundle in workerd (Cloudflare Workers)
 npm run measure:bundle # measure bundle size (--check compares to the baseline)
-npm run bench          # measure throughput (deliberately not gated in CI)
+npm run bench          # measure throughput (needs a build first; not gated in CI)
 ```

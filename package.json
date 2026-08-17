@@ -59,7 +59,7 @@
     "test:browser": "node scripts/verify-browser.mjs",
     "test:workers": "node scripts/verify-workers.mjs",
     "measure:bundle": "node scripts/measure-bundle.mjs",
-    "bench": "npm run build && node scripts/bench-throughput.mjs",
+    "bench": "node scripts/bench-throughput.mjs",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
