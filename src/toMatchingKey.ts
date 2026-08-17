@@ -36,6 +36,25 @@ type NormalizeMode = "NFC" | "NFKC" | false;
 
 const VALID_NORMALIZE_MODES = new Set<unknown>(["NFC", "NFKC", false]);
 
+const KNOWN_OPTIONS = new Set(["unicodeNormalize", "ignoreWhitespace"]);
+
+/**
+ * Characters dropped from `key` when `ignoreWhitespace` is on.
+ *
+ * `\s` covers the visible spacing (space, tab, newline, and — via NFKC or
+ * directly — U+3000 and U+00A0). `\p{Cf}` covers the invisible formatting
+ * characters: zero-width space, BOM, soft hyphen, the bidi controls. The
+ * second half matters more in practice, because a record carrying a
+ * zero-width space looks identical on screen to one without, so a caller
+ * comparing keys sees two people where there is one and has nothing to look
+ * at that would explain it.
+ *
+ * Variation selectors are deliberately outside this set: they are `Mn`
+ * (nonspacing marks), not `Cf`, and they carry the glyph distinction this
+ * library exists to read.
+ */
+const IGNORABLE = /[\s\p{Cf}]/u;
+
 /**
  * Validates `options.unicodeNormalize` instead of handing it straight to
  * String.prototype.normalize.
@@ -53,7 +72,7 @@ const VALID_NORMALIZE_MODES = new Set<unknown>(["NFC", "NFKC", false]);
  * caught by validating the value — the option is simply never read, and the
  * caller silently gets NFKC while believing they opted out.
  */
-function resolveNormalizeMode(options: MatchingKeyOptions): NormalizeMode {
+function resolveOptions(options: MatchingKeyOptions): { mode: NormalizeMode; ignoreWhitespace: boolean } {
   if (options === null || typeof options !== "object") {
     throw new TypeError(
       `toMatchingKey() expects its second argument to be an options object, received ${
@@ -62,18 +81,26 @@ function resolveNormalizeMode(options: MatchingKeyOptions): NormalizeMode {
     );
   }
   for (const key of Object.keys(options)) {
-    if (key !== "unicodeNormalize") {
+    if (!KNOWN_OPTIONS.has(key)) {
       throw new TypeError(`toMatchingKey() received an unknown option ${JSON.stringify(key)}`);
     }
   }
   const mode = options.unicodeNormalize;
-  if (mode === undefined) return "NFKC";
-  if (!VALID_NORMALIZE_MODES.has(mode)) {
+  if (mode !== undefined && !VALID_NORMALIZE_MODES.has(mode)) {
     throw new TypeError(
       `toMatchingKey() expects options.unicodeNormalize to be "NFC", "NFKC" or false, received ${JSON.stringify(mode)}`,
     );
   }
-  return mode;
+  const ignoreWhitespace = options.ignoreWhitespace;
+  if (ignoreWhitespace !== undefined && typeof ignoreWhitespace !== "boolean") {
+    throw new TypeError(
+      `toMatchingKey() expects options.ignoreWhitespace to be a boolean, received a ${typeof ignoreWhitespace}`,
+    );
+  }
+  return {
+    mode: mode === undefined ? "NFKC" : mode,
+    ignoreWhitespace: ignoreWhitespace !== false,
+  };
 }
 
 function normalizeIfEnabled(text: string, mode: NormalizeMode): string {
@@ -219,7 +246,7 @@ function resolveTie(
  */
 export function toMatchingKey(text: string, options: MatchingKeyOptions = {}): MatchingKeyResult {
   requireString(text, "toMatchingKey", "its first argument");
-  const mode = resolveNormalizeMode(options);
+  const { mode, ignoreWhitespace } = resolveOptions(options);
   const normalized = normalizeIfEnabled(text, mode);
 
   const units = splitUnits(normalized);
@@ -227,6 +254,13 @@ export function toMatchingKey(text: string, options: MatchingKeyOptions = {}): M
   let key = "";
   let index = 0;
   for (const unit of units) {
+    // Dropped from `key` but still counted into `index`, so offsets keep
+    // pointing into `normalized` (which keeps the spacing) rather than into
+    // a string the caller never sees.
+    if (ignoreWhitespace && unit.vs === null && IGNORABLE.test(unit.base)) {
+      index += unit.text.length;
+      continue;
+    }
     const { final, reason } = resolveUnit(unit, mode);
     if (final !== null) {
       key += final;
