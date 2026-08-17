@@ -98,7 +98,9 @@ try {
   assert.ok(groupCount >= 2, `expected the default input to form several groups, got ${groupCount}`);
 
   const watanabe = page.locator("#text-output .group").first();
-  assert.equal((await watanabe.locator(".glyph-key").first().textContent()).trim(), "渡辺 太郎");
+  // No space in the key: 0.2.0 drops spacing, because 渡辺 太郎 and 渡辺太郎
+  // are the same person and were landing in two groups.
+  assert.equal((await watanabe.locator(".glyph-key").first().textContent()).trim(), "渡辺太郎");
   assert.equal(await watanabe.locator(".members > li").count(), 3, "渡邉/渡邊/渡辺 should share one key");
 
   // 2. A failure case is visible without interaction — this library's whole
@@ -141,7 +143,7 @@ try {
 
   const presets = page.locator(".preset");
   const presetCount = await presets.count();
-  assert.ok(presetCount >= 8, `expected the preset buttons to exist, got ${presetCount}`);
+  assert.ok(presetCount >= 9, `expected the preset buttons to exist, got ${presetCount}`);
   for (let i = 0; i < presetCount; i++) await presets.nth(i).click();
 
   // Give anything asynchronous a chance to fire before declaring silence.
@@ -149,6 +151,18 @@ try {
 
   assert.deepEqual(afterReady, [], "the page made network requests after loading");
   assert.deepEqual(pageErrors, [], "uncaught page errors during interaction");
+
+  // 6a. The whitespace preset really does collapse to one group. This is the
+  //     bug the owner found on the live page (渡辺 太郎 and 渡辺太郎 sorted
+  //     apart), so the page must keep demonstrating that it no longer happens
+  //     — including the row whose zero-width space is invisible on screen.
+  await page.locator(".preset", { hasText: "空白・不可視文字" }).first().click();
+  await page.waitForSelector("#text-output .group");
+  assert.equal(
+    await page.locator("#text-output .group").count(),
+    1,
+    "the whitespace preset should collapse to a single group",
+  );
 
   // 6. The presets really do demonstrate what they claim. Re-select the ones
   //    that carry the argument and check the rendered result, so a preset that
