@@ -15,6 +15,13 @@ on:
   # Lets a redeploy be triggered by hand after a release bumps the pin, and
   # after Pages is enabled for the first time.
   workflow_dispatch:
+  # The build warns when the pin has fallen behind the registry, but a release
+  # touches neither demo/ nor this file, so the paths filters above mean the
+  # warning is never printed: the page can sit on an old version indefinitely
+  # with nothing going red. This schedule is what turns that warning into
+  # something a human sees.
+  schedule:
+    - cron: '17 3 * * 1'
 
 # The paths filters above are safe here because this workflow is not a
 # required status check. Making a paths-filtered workflow required leaves
@@ -95,3 +102,27 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # Deliberately a separate job from build/deploy: a stale pin means the page
+  # is behind, not broken, so the deployed page must keep matching the pin.
+  # Failing here makes the drift visible without publishing something nobody
+  # verified.
+  pin-freshness:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: The pinned demo version should be the registry's latest
+        run: |
+          pinned="$(tr -d '[:space:]' < demo/pinned-version.txt)"
+          latest="$(npm view itaiji-normalize version)"
+          echo "pinned=$pinned latest=$latest"
+          if [ "$pinned" != "$latest" ]; then
+            echo "::error::demo/pinned-version.txt pins $pinned but the registry's latest is $latest."
+            echo "::error::Bump the pin (docs/releasing.md) so the demo runs what a visitor installs."
+            exit 1
+          fi

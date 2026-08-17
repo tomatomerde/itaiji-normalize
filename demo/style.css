@@ -88,6 +88,51 @@ h1 {
   color: var(--muted);
 }
 
+.request-meter {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: .5rem .7rem;
+  margin: .6rem 0 0;
+  padding: .7rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.meter-label { font-size: .9rem; color: var(--muted); }
+.meter-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ok);
+}
+.meter-note {
+  grid-column: 1 / -1;
+  font-size: .82rem;
+  color: var(--muted);
+}
+.meter-note kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .95em;
+  background: var(--chip-bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 .3rem;
+}
+/* Only ever set, never cleared: a request that happened, happened. */
+.request-meter.dirty { border-left-color: var(--warn-line); }
+.request-meter.dirty .meter-value { color: var(--warn-fg); }
+
+.panel-guide { border-left: 4px solid var(--accent); }
+.guide {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: .55rem;
+}
+.guide li { line-height: 1.65; }
+
 .font-note {
   font-size: .85rem;
   color: var(--muted);
