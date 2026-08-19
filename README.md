@@ -61,7 +61,8 @@ Most people reach for `text.normalize("NFKC")` before they reach for npm. It is
 free, built in, and it is genuinely step one here — `toMatchingKey` runs it by
 default. On its own it does almost nothing about kanji variants.
 
-Of the **27,661** character-to-character reductions in this package's data,
+Of the **27,661** character-to-character reductions in this package's data —
+the same set as above, before subtracting the 993 that `itaiji` also has —
 NFKC collapses **77 — 0.3%**. NFC collapses the same 77, so the compatibility
 half of NFKC is buying nothing: 崎 and 﨑 are two characters with two
 identities, not a character and a compatibility form of one.
