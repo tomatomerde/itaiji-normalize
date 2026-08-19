@@ -3,6 +3,24 @@
 Notable changes to this package. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Documented
+
+- Both READMEs now answer the question a reader asks before installing
+  anything: **is `String.normalize("NFKC")` enough?** Measured, not asserted —
+  of the 27,661 character-to-character reductions in the shipped data, NFKC
+  folds 77 (0.3%), NFC folds the same 77, and none of the seven surname
+  variants anyone actually hits (﨑/崎, 髙/高, 邉/辺, 邊/辺, 德/徳, 濵/浜,
+  栁/柳) is among them. Variation selectors survive normalization as well.
+  The computation lives in `test/itaiji-comparison.test.ts` next to the
+  `itaiji` comparison, sharing its denominator so the two percentages in the
+  README are over the same set.
+- `kanji-processor`, the other package npm surfaces for "kanji variant", is
+  named and placed: a different job (異体字 → 親字 for Yomitan), from a
+  commercial dictionary, with the package's MIT notice covering the code and
+  nothing said about the data.
+
 ## 0.2.0 — 2026-08-17
 
 ### Changed (behaviour)

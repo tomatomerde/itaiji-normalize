@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { isVariant, reduce } from "../src/index.js";
+import { isVariant, reduce, toMatchingKey } from "../src/index.js";
 import { REDUCE_BY_UCS } from "../src/generated/tables.js";
 
+// このファイルは、両 README が「代わりに何を検討するか」に答えている箇所の
+// 数値の出どころ。比較対象は2つある——npm の `itaiji` と、Unicode 正規化。
+//
 // 両 README は npm の `itaiji` との比較を断定形で載せている——「約19倍の対応数」
 // 「1,404組のうち約86%」。出どころは `docs/phase0-report.md`(2026-08-04 の
 // 実装前調査)で、**再現手段がリポジトリに無かった**。
@@ -38,6 +41,65 @@ function mjNonTrivialPairs(): ReadonlySet<string> {
   }
   return pairs;
 }
+
+/**
+ * 読者が npm を引くより前に試すのは `String.prototype.normalize` のほう。
+ * 「まず NFKC を通せば済むのでは」に答えるのがこの比較で、両 README の
+ * 「Unicode 正規化では届かない範囲」の節がここから数値を取っている。
+ *
+ * 分母は `itaiji` 比較と同じ MJ の非自明な対応 27,661 組。別々に数えると、
+ * 同じ文書の中で分母の違う割合が並ぶことになる。
+ */
+describe("Unicode 正規化との比較(README の数値の出どころ)", () => {
+  const MJ_PAIRS = [...mjNonTrivialPairs()].map((pair) => [...pair] as [string, string]);
+
+  it("MJ の対応 27,661 組のうち、NFKC が畳むのは 77 組(0.3%)", () => {
+    expect(MJ_PAIRS.length).toBe(27_661);
+    const folded = MJ_PAIRS.filter(([a, b]) => a.normalize("NFKC") === b.normalize("NFKC"));
+    expect(folded.length).toBe(77);
+    expect(Math.round((folded.length / MJ_PAIRS.length) * 1000) / 10).toBe(0.3);
+    expect(README_EN).toContain("27,661");
+    expect(README_JA).toContain("27,661");
+  });
+
+  it("NFC でも同じ 77 組。互換分解を足しても漢字の異体字には効かない", () => {
+    // NFKC は「互換文字を畳む」正規化なので、NFC より広く畳むはずだが、
+    // 異体字については差が出ない——効いているのは正規合成のほうだけ、
+    // という事実。README がその言い方をしている根拠。
+    const nfc = MJ_PAIRS.filter(([a, b]) => a.normalize("NFC") === b.normalize("NFC"));
+    expect(nfc.length).toBe(77);
+  });
+
+  it("名寄せで実際に効いてほしい姓の異体字は、1組も畳まれない", () => {
+    // 割合だけでは「畳めない 0.3% は稀な字なのだろう」と読めてしまう。
+    // README が名指ししている組を1つずつ確かめる。
+    const SURNAMES = [
+      ["﨑", "崎"],
+      ["髙", "高"],
+      ["邉", "辺"],
+      ["邊", "辺"],
+      ["德", "徳"],
+      ["濵", "浜"],
+      ["栁", "柳"],
+    ] as const;
+    for (const [variant, base] of SURNAMES) {
+      expect(variant.normalize("NFKC"), `NFKC(${variant}) は ${base} にならない`).not.toBe(base);
+      expect(isVariant(variant, base), `${variant} と ${base} は異体字`).toBe(true);
+      expect(README_EN).toContain(variant);
+      expect(README_JA).toContain(variant);
+    }
+  });
+
+  it("NFKC は異体字セレクタを落とさない", () => {
+    // IVS 付きの字は、NFKC を通しても base とは別の文字列のまま。
+    const base = "\u845B"; // 葛
+    const withSelector = `${base}\u{E0100}`;
+    expect(withSelector.normalize("NFKC")).not.toBe(base);
+    expect([...withSelector.normalize("NFKC")]).toHaveLength(2);
+    // この package 側は同じキーに落とす。
+    expect(toMatchingKey(withSelector).key).toBe(toMatchingKey(base).key);
+  });
+});
 
 describe(`npm itaiji ${ITAIJI_VERSION} との比較(README の数値の出どころ)`, () => {
   it("itaiji の辞書は 1,404 組の 1:1 対応", () => {

@@ -55,6 +55,43 @@ sides are already independently JIS-representable (e.g. 啞→唖, 鷗→鴎) ar
 is specifically old-style→new-style kanji substitution, check whether that
 distinction matters for you.
 
+### What `String.normalize()` gets you on its own
+
+Most people reach for `text.normalize("NFKC")` before they reach for npm. It is
+free, built in, and it is genuinely step one here — `toMatchingKey` runs it by
+default. On its own it does almost nothing about kanji variants.
+
+Of the **27,661** character-to-character reductions in this package's data —
+the same set as above, before subtracting the 993 that `itaiji` also has —
+NFKC collapses **77 — 0.3%**. NFC collapses the same 77, so the compatibility
+half of NFKC is buying nothing: 崎 and 﨑 are two characters with two
+identities, not a character and a compatibility form of one.
+
+Nor is that 0.3% a tail of rare characters. Of the variants you actually meet
+in a name column — 﨑/崎, 髙/高, 邉/辺, 邊/辺, 德/徳, 濵/浜, 栁/柳 — Unicode
+normalization folds **none of the seven**, and this package treats all seven as
+equivalent.
+
+Variation selectors survive normalization too: 葛 followed by U+E0100 is still
+two code points after NFKC, and still unequal to plain 葛. `toMatchingKey`
+folds both to one key. All of this is measured in
+[`test/itaiji-comparison.test.ts`](./test/itaiji-comparison.test.ts).
+
+### The other package on npm
+
+Searching npm for "kanji variant" also surfaces
+[`kanji-processor`](https://www.npmjs.com/package/kanji-processor), which maps
+異体字 to 親字 for [Yomitan](https://github.com/yomidevs/yomitan) using
+三省堂 全訳漢辞海 第四版. Different job, and different provenance: its `LICENSE`
+is an MIT notice for the code, with nothing said about the dictionary the data
+comes from. Version 1.0.2 as published also does not load on Node.js 22 — its
+ESM entry point imports JSON without an import attribute, which Node rejects.
+
+That there is so little here is not an accident. A grounded variant table is
+not something you can write down from memory: it has to be obtained from a
+published dataset and reshaped, and the two packages that exist took the two
+cheaper routes — a hand-built list, and a dictionary someone already owned.
+
 ## Install
 
 ```sh
