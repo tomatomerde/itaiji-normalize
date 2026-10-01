@@ -1,14 +1,21 @@
 version: 2
 
-# Monthly and grouped on purpose. A solo maintainer merges these by hand, so
-# the cost of an update is the review, not the version bump; weekly ungrouped
-# updates turn into a queue nobody reads.
+# Version updates are switched off (open-pull-requests-limit: 0 on both
+# entries below). The library has no runtime dependencies, so every version
+# update here bumps a development tool and changes nothing for anyone who
+# installs the package; for the maintainer it was a monthly review request
+# with nothing to decide. Security alerts are unaffected, and security update
+# pull requests (when enabled in the repository settings) have their own limit
+# and still open when an advisory hits a dependency.
+#
+# To turn version updates back on, restore the limits (2 and 3). The
+# grouping and the major-version ignore below are kept for that day.
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       github-actions:
         patterns: ['*']
@@ -17,7 +24,7 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     # Minor and patch only, and majors are not proposed at all. This is a
     # deliberate silence, not an oversight: the first grouped run bundled
     # TypeScript 5.9 -> 7.0, @types/node 22 -> 26 and vitest 2 -> 4 into one
